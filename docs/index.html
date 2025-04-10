@@ -3,11 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <title>Solana Anchor DApp</title>
-  <!-- Include Solana Web3.js (UMD version) -->
-  <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
-  <!-- Include the UMD build of Anchor (avoids module import errors) -->
-  <script src="https://unpkg.com/@coral-xyz/anchor@0.31.0/dist/browser/index.js"></script>
-  <script src="https://unpkg.com/@project-serum/anchor@0.27.0/dist/anchor.browser.umd.js" crossorigin></script>
+  <!-- Load Solana Web3.js UMD bundle -->
+  <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js" crossorigin="anonymous"></script>
+  <!-- Load Anchor UMD bundle from @project-serum/anchor v0.25.0 -->
+  <script src="https://cdn.jsdelivr.net/npm/@project-serum/anchor@0.25.0/dist/browser/index.js" crossorigin="anonymous"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 2em; }
     button, input { margin: 0.5em 0; }
@@ -15,14 +14,14 @@
   </style>
 </head>
 <body>
-  <!-- Wallet Connect Section -->
+  <!-- Wallet Connection Section -->
   <button id="connectButton">Connect Wallet (Phantom)</button>
-  <p id="walletAddress" style="font-weight: bold;"></p>
-  
-  <!-- Set Exempt Section -->
+  <p id="walletAddress" style="font-weight:bold;"></p>
+
+  <!-- Set Exempt Address Section -->
   <h3>Set Exempt Address</h3>
   <p>
-    <input type="text" id="exemptPubkeyInput" size="45" placeholder="Enter public key">
+    <input type="text" id="exemptPubkeyInput" size="45" placeholder="Enter new exempt public key">
     <button id="setExemptButton" disabled>Set Exempt</button>
   </p>
 
@@ -42,23 +41,27 @@
   <div id="status"></div>
 
   <script>
-    // Global variables for wallet, program, connection, etc.
+    // Global DOM elements
     const statusEl = document.getElementById('status');
     const walletAddressEl = document.getElementById('walletAddress');
     const connectButton = document.getElementById('connectButton');
     const setExemptButton = document.getElementById('setExemptButton');
     const registerButton = document.getElementById('registerButton');
     const claimButton = document.getElementById('claimButton');
-    let provider = null, program = null, connection = null, walletPublicKey = null;
-    let dappConfigPda = null, mintAuthPda = null, tokenMintPubkey = null;
-
-    // Replace the following with your full IDL JSON object.
-    const idl = /* your full IDL JSON goes here */ {};
-
-    // Program ID from your Anchor program declare_id!
+    
+    // Global variables for wallet, connection, and program
+    let provider, walletPublicKey, connection, program;
+    let dappConfigPda, mintAuthPda, tokenMintPubkey;
+    
+    // Replace this placeholder with your full IDL JSON object
+    const idl = {
+      /* Paste your full IDL JSON here */
+    };
+    
+    // Program ID from your on-chain Anchor program
     const programId = new anchor.web3.PublicKey("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
-
-    // Connect wallet handler (Phantom should inject window.solana)
+    
+    // Connect Phantom wallet button handler
     connectButton.onclick = async () => {
       provider = window.solana;
       if (!provider || !provider.isPhantom) {
@@ -71,51 +74,54 @@
         walletAddressEl.textContent = "Wallet Connected: " + walletPublicKey.toString();
         statusEl.textContent = "Wallet connected successfully.";
         console.log("Connected wallet:", walletPublicKey.toString());
+        
         // Connect to Solana Devnet
         connection = new anchor.web3.Connection(anchor.web3.clusterApiUrl('devnet'), 'confirmed');
         const anchorProvider = new anchor.AnchorProvider(connection, provider, anchor.AnchorProvider.defaultOptions());
         anchor.setProvider(anchorProvider);
-        // Initialize the Anchor program interface
+        
+        // Initialize the program interface
         program = new anchor.Program(idl, programId, anchorProvider);
         console.log("Program initialized:", program.programId.toString());
-
-        // Derive the dapp_config PDA (seed must match your program)
+        
+        // Derive the dapp_config PDA (the seed must match your on-chain program)
         [dappConfigPda] = await anchor.web3.PublicKey.findProgramAddress(
           [Buffer.from("dapp_config")],
           programId
         );
         console.log("dapp_config PDA:", dappConfigPda.toString());
-
-        // Derive the mint_authority PDA (seed must match your program)
+        
+        // Derive the mint_authority PDA (the seed must match your on-chain program)
         [mintAuthPda] = await anchor.web3.PublicKey.findProgramAddress(
           [Buffer.from("mint_authority")],
           programId
         );
         console.log("mint_authority PDA:", mintAuthPda.toString());
-
-        // Attempt to fetch tokenMint from the dapp_config account (if initialized)
+        
+        // Optionally fetch the dapp_config account to get tokenMint
         try {
           const configAccount = await program.account.dappConfig.fetch(dappConfigPda);
           tokenMintPubkey = configAccount.tokenMint;
-          console.log("Token Mint:", tokenMintPubkey.toString());
+          console.log("Token Mint fetched:", tokenMintPubkey.toString());
         } catch (err) {
-          console.warn("dapp_config account not found (token mint not available).");
+          console.warn("dapp_config account not found; token mint unavailable.");
         }
-        // Enable buttons now that connection is set up
+        
+        // Enable action buttons now that connection is established
         setExemptButton.disabled = false;
         registerButton.disabled = false;
         claimButton.disabled = false;
       } catch (err) {
-        console.error("Wallet connect error:", err);
-        statusEl.textContent = "Error connecting wallet: " + (err.message || err);
+        console.error("Wallet connection error:", err);
+        statusEl.textContent = "Error connecting wallet: " + err.message;
       }
     };
-
-    // Set Exempt handler
+    
+    // Handler for Set Exempt instruction
     setExemptButton.onclick = async () => {
       const input = document.getElementById('exemptPubkeyInput').value.trim();
       if (!input) {
-        statusEl.textContent = "Enter a public key.";
+        statusEl.textContent = "Please enter a public key.";
         return;
       }
       let newExempt;
@@ -126,27 +132,26 @@
         return;
       }
       try {
-        await program.methods
-          .setExempt(newExempt)
+        await program.methods.setExempt(newExempt)
           .accounts({
             dappConfig: dappConfigPda,
             currentExempt: walletPublicKey
           })
           .rpc();
-        statusEl.textContent = "✅ set_exempt successful for " + newExempt.toString();
+        statusEl.textContent = "✅ set_exempt executed for " + newExempt.toString();
       } catch (err) {
         console.error(err);
-        statusEl.textContent = "❌ set_exempt failed: " + (err.message || err);
+        statusEl.textContent = "❌ set_exempt error: " + err.message;
       }
     };
-
-    // Register User handler
+    
+    // Handler for Register User instruction
     registerButton.onclick = async () => {
       if (!walletPublicKey) {
         statusEl.textContent = "Connect wallet first.";
         return;
       }
-      // Derive the user PDA using seed "user" and the wallet's public key
+      // Derive user PDA using seed ["user", userPubkey]
       const [userPda] = await anchor.web3.PublicKey.findProgramAddress(
         [Buffer.from("user"), walletPublicKey.toBuffer()],
         programId
@@ -156,7 +161,7 @@
         statusEl.textContent = "Token mint not available from dapp_config.";
         return;
       }
-      // Derive the user's Associated Token Account (ATA)
+      // Derive the user's associated token account (ATA)
       const TOKEN_PROGRAM_ID = new anchor.web3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
       const ASSOCIATED_PROGRAM_ID = new anchor.web3.PublicKey("ATokenGPvbdGVtpfHhQZC2bH7m7QEupTQYxMtn6YDf");
       const [userAta] = await anchor.web3.PublicKey.findProgramAddress(
@@ -169,12 +174,11 @@
       );
       console.log("User ATA:", userAta.toString());
       try {
-        await program.methods
-          .registerUser()
+        await program.methods.registerUser()
           .accounts({
             dappConfig: dappConfigPda,
             user: walletPublicKey,
-            gatewayToken: walletPublicKey, // Using wallet as a placeholder for gateway token
+            gatewayToken: walletPublicKey, // Placeholder for gateway token if needed
             userPda: userPda,
             systemProgram: anchor.web3.SystemProgram.programId,
             rent: anchor.web3.SYSVAR_RENT_PUBKEY,
@@ -185,14 +189,14 @@
             associatedTokenProgram: ASSOCIATED_PROGRAM_ID
           })
           .rpc();
-        statusEl.textContent = "✅ register_user successful, PDA: " + userPda.toString();
+        statusEl.textContent = "✅ register_user executed. PDA: " + userPda.toString();
       } catch (err) {
         console.error(err);
-        statusEl.textContent = "❌ register_user failed: " + (err.message || err);
+        statusEl.textContent = "❌ register_user error: " + err.message;
       }
     };
-
-    // Claim Tokens handler
+    
+    // Handler for Claim instruction
     claimButton.onclick = async () => {
       if (!walletPublicKey) {
         statusEl.textContent = "Connect wallet first.";
@@ -213,12 +217,11 @@
         ASSOCIATED_PROGRAM_ID
       );
       try {
-        await program.methods
-          .claim()
+        await program.methods.claim()
           .accounts({
             dappConfig: dappConfigPda,
             user: walletPublicKey,
-            gatewayToken: walletPublicKey, // placeholder for gateway token
+            gatewayToken: walletPublicKey, // Placeholder for gateway token if needed
             userPda: userPda,
             tokenMint: tokenMintPubkey,
             mintAuthority: mintAuthPda,
@@ -226,10 +229,10 @@
             tokenProgram: TOKEN_PROGRAM_ID
           })
           .rpc();
-        statusEl.textContent = "✅ claim successful.";
+        statusEl.textContent = "✅ claim executed successfully.";
       } catch (err) {
         console.error(err);
-        statusEl.textContent = "❌ claim failed: " + (err.message || err);
+        statusEl.textContent = "❌ claim error: " + err.message;
       }
     };
   </script>
