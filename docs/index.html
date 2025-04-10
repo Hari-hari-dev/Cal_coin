@@ -6,7 +6,7 @@
   <!-- Load Solana Web3.js UMD bundle -->
   <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js" crossorigin="anonymous"></script>
   <!-- Load Anchor UMD bundle from @project-serum/anchor v0.25.0 -->
-  <script src="https://cdn.jsdelivr.net/npm/@project-serum/anchor@0.25.0/dist/browser/index.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@project-serum/anchor@0.25.0/dist/anchor.browser.umd.js" crossorigin="anonymous"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 2em; }
     button, input { margin: 0.5em 0; }
@@ -58,7 +58,7 @@
       /* Paste your full IDL JSON here */
     };
     
-    // Program ID from your on-chain Anchor program
+    // Your program ID from your on‑chain Anchor program
     const programId = new anchor.web3.PublicKey("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
     
     // Connect Phantom wallet button handler
@@ -74,39 +74,39 @@
         walletAddressEl.textContent = "Wallet Connected: " + walletPublicKey.toString();
         statusEl.textContent = "Wallet connected successfully.";
         console.log("Connected wallet:", walletPublicKey.toString());
-        
+  
         // Connect to Solana Devnet
         connection = new anchor.web3.Connection(anchor.web3.clusterApiUrl('devnet'), 'confirmed');
         const anchorProvider = new anchor.AnchorProvider(connection, provider, anchor.AnchorProvider.defaultOptions());
         anchor.setProvider(anchorProvider);
-        
-        // Initialize the program interface
+  
+        // Initialize the Anchor program interface
         program = new anchor.Program(idl, programId, anchorProvider);
         console.log("Program initialized:", program.programId.toString());
-        
-        // Derive the dapp_config PDA (the seed must match your on-chain program)
+  
+        // Derive the dapp_config PDA (seed must match your on‑chain program)
         [dappConfigPda] = await anchor.web3.PublicKey.findProgramAddress(
           [Buffer.from("dapp_config")],
           programId
         );
         console.log("dapp_config PDA:", dappConfigPda.toString());
-        
-        // Derive the mint_authority PDA (the seed must match your on-chain program)
+  
+        // Derive the mint_authority PDA (seed must match your on‑chain program)
         [mintAuthPda] = await anchor.web3.PublicKey.findProgramAddress(
           [Buffer.from("mint_authority")],
           programId
         );
         console.log("mint_authority PDA:", mintAuthPda.toString());
-        
-        // Optionally fetch the dapp_config account to get tokenMint
+  
+        // Optionally, fetch the dapp_config account to get tokenMint (if initialized)
         try {
           const configAccount = await program.account.dappConfig.fetch(dappConfigPda);
           tokenMintPubkey = configAccount.tokenMint;
-          console.log("Token Mint fetched:", tokenMintPubkey.toString());
+          console.log("Token mint fetched:", tokenMintPubkey.toString());
         } catch (err) {
           console.warn("dapp_config account not found; token mint unavailable.");
         }
-        
+  
         // Enable action buttons now that connection is established
         setExemptButton.disabled = false;
         registerButton.disabled = false;
@@ -151,7 +151,7 @@
         statusEl.textContent = "Connect wallet first.";
         return;
       }
-      // Derive user PDA using seed ["user", userPubkey]
+      // Derive the user's PDA using seed ["user", userPubkey]
       const [userPda] = await anchor.web3.PublicKey.findProgramAddress(
         [Buffer.from("user"), walletPublicKey.toBuffer()],
         programId
