@@ -45438,35 +45438,18 @@
 
   /*! https://docs.phantom.app/ */
 
-  async function getPhantom(role) {
+  async function getPhantom() {
       try {
-          // connect
           const connection = await window.solana.connect();
           const publicKey = connection.publicKey;
-          console.log("phantom wallet connected");
-          // more
-          const more = {
-              wallet: publicKey.toString()
-          };
-          // encode
-          const response = {
-              role: role,
-              more: JSON.stringify(more)
-          };
-          // send state to elm
-          app.ports.getCurrentStateListener.send(JSON.stringify(response));
-          // return state to js
-          return {windowSolana: window.solana, connection: connection}
+          console.log("Phantom wallet connected:", publicKey.toString());
+          return { windowSolana: window.solana, connection };
       } catch (err) {
           console.log(err.message);
-          // validate phantom install
-          const isPhantomInstalled = window.solana && window.solana.isPhantom;
-          if (!isPhantomInstalled) {
-              // if phantom not intall open download link in new tab
+          if (!(window.solana && window.solana.isPhantom)) {
               window.open("https://phantom.app/", "_blank");
           } else {
-              // send err to elm
-              app.ports.connectFailureListener.send(err.message);
+              console.error("Phantom connection error:", err.message);
           }
       }
   }
@@ -45474,37 +45457,26 @@
   // get ledger state
   async function getLedger(program, ledger, release) {
       try {
-          // fetch state
           const _state = await program.account.ledger.fetch(ledger);
 
-          // simplify for codec
-          function simplifyEscrowItem(escrowItem) {
-              return {
-                  seller: escrowItem.seller.toString(),
-                  price: Number(escrowItem.price)
-              }
-          }
+          const simplifyEscrowItem = escrowItem => ({
+              seller: escrowItem.seller.toString(),
+              price: Number(escrowItem.price)
+          });
 
-          function simplify() {
-              const _owners = _state.owners.map(_publicKey => _publicKey.toString());
-              const _escrow = _state.escrow.map(escrowItem => simplifyEscrowItem(escrowItem));
-              return {
-                  price: Number(_state.price.toString()),
-                  resale: _state.resale, // not a BN type
-                  originalSupply: Number(_state.originalSupply.toString()),
-                  originalSupplyRemaining: Number(_state.originalSupplyRemaining.toString()),
-                  owners: _owners,
-                  escrow: _escrow,
-                  release: release
-              };
-          }
+          const simplified = {
+              price: Number(_state.price.toString()),
+              resale: _state.resale,
+              originalSupply: Number(_state.originalSupply.toString()),
+              originalSupplyRemaining: Number(_state.originalSupplyRemaining.toString()),
+              owners: _state.owners.map(pk => pk.toString()),
+              escrow: _state.escrow.map(simplifyEscrowItem),
+              release
+          };
 
-          return simplify();
+          return simplified;
       } catch (error) {
-          // log error
-          console.log(error.toString());
-          // send error to elm
-          app.ports.getCurrentStateFailureListener.send(error.message);
+          console.error("Ledger fetch error:", error);
       }
   }
 
@@ -45535,162 +45507,117 @@
       }
   }
 
-  async function init(program, provider, ledger, seed, user, n, price, resale) {
-      try {
-          const priceInLamports = price * LAMPORTS_PER_SOL;
-          await program.rpc.initializeLedger(seed, new BN$9(n), new BN$9(priceInLamports), resale, {
-              accounts: {
-                  user: provider.wallet.publicKey,
-                  ledger: ledger,
-                  systemProgram: SystemProgram.programId,
-              },
-          });
-          // send state to elm
-          app.ports.getCurrentStateListener.send(user);
-          // log success
-          console.log("program init success");
-      } catch (error) {
-          // log error
-          console.log(error.toString());
-          // send error to elm
-          app.ports.initProgramFailureListener.send(error.message);
-      }
-  }
+    async function init(program, provider, ledger, seed, n, price, resale) {
+        try {
+            const priceInLamports = price * LAMPORTS_PER_SOL;
+            await program.rpc.initializeLedger(seed, new BN$9(n), new BN$9(priceInLamports), resale, {
+                accounts: {
+                    user: provider.wallet.publicKey,
+                    ledger,
+                    systemProgram: SystemProgram.programId,
+                },
+            });
+            console.log("Program initialized successfully.");
+        } catch (error) {
+            console.error("Program init error:", error);
+        }
+    }
 
-  async function primary(program, provider, recipient, ledger, user) {
-      try {
-          await program.rpc.purchasePrimary({
-              accounts: {
-                  buyer: provider.wallet.publicKey,
-                  recipient: new PublicKey(recipient),
-                  boss: BOSS,
-                  ledger: ledger,
-                  systemProgram: SystemProgram.programId,
-              },
-          });
-          // send state to elm
-          app.ports.getCurrentStateListener.send(user);
-          // log success
-          console.log("primary purchase success");
-      } catch (error) {
-          // log error
-          console.log(error.toString());
-          // send error to elm
-          app.ports.purchasePrimaryFailureListener.send(error.message);
+    async function primary(program, provider, recipient, ledger) {
+        try {
+            await program.rpc.purchasePrimary({
+                accounts: {
+                    buyer: provider.wallet.publicKey,
+                    recipient: new PublicKey(recipient),
+                    boss: BOSS,
+                    ledger,
+                    systemProgram: SystemProgram.programId,
+                },
+            });
+            console.log("Primary purchase successful.");
+        } catch (error) {
+            console.error("Primary purchase error:", error);
+        }
       }
-  }
 
   // TODO; move to phantom dir
-  async function sign(_phantom, user) {
-      try {
-          // build message
-          const message = "ready for download";
-          const encoded = textEncoder.encode(message);
-          const signed = await _phantom.windowSolana.signMessage(encoded, "utf8");
-          // build json
-          // TODO; add release id
-          const signedObj = {
-              message: encodeBase64(encoded),
-              signature: encodeBase64(signed.signature),
-              user: encodeBase64(new PublicKey(user).toBytes()),
-              userDecoded: user
-          };
-          const signedJson = JSON.stringify(signedObj);
-          // send signature to elm
-          app.ports.signMessageSuccessListener.send(signedJson);
-          // log success
-          console.log("sign message success & sent to elm");
-      } catch (error) {
-          // log error
-          console.log(error.toString());
-          // send error to elm
-          app.ports.signMessageFailureListener.send(error.message);
-      }
-  }
 
-  function download(url) {
-      window.open(url, "_blank");
-  }
+    async function sign(_phantom, user) {
+        try {
+            const message = "ready for download";
+            const encoded = textEncoder.encode(message);
+            const signed = await _phantom.windowSolana.signMessage(encoded, "utf8");
 
-  async function submit(program, provider, ledger, userJson) {
-      // decode user
-      const user = JSON.parse(userJson);
-      const more = JSON.parse(user.more);
-      // rpc
-      try {
-          await program.rpc.submitToEscrow(new BN$9(more.price), {
-              accounts: {
-                  seller: provider.wallet.publicKey,
-                  ledger: ledger,
-                  systemProgram: SystemProgram.programId,
-              }
-          });
-          // send state to elm
-          app.ports.getCurrentStateListener.send(userJson);
-          // log success
-          console.log("submit to escrow success");
-      } catch (error) {
-          // log error
-          console.log(error.toString());
-          // send error to elm
-          app.ports.submitToEscrowFailureListener.send(error.message);
-      }
-  }
+            const signedObj = {
+                message: encodeBase64(encoded),
+                signature: encodeBase64(signed.signature),
+                user: encodeBase64(new PublicKey(user).toBytes()),
+                userDecoded: user
+            };
 
-  async function remove(program, provider, ledger, userJson) {
-      try {
-          await program.rpc.removeFromEscrow({
-              accounts: {
-                  seller: provider.wallet.publicKey,
-                  ledger: ledger,
-                  systemProgram: SystemProgram.programId,
-              }
-          });
-          // send state to elm
-          app.ports.getCurrentStateListener.send(userJson);
-          // log success
-          console.log("remove from escrow success");
-      } catch (error) {
-          // log error
-          console.log(error.toString());
-          // send error to elm
-          app.ports.genericErrorListener.send(error.message);
-      }
-  }
+            console.log("Message signed successfully:", signedObj);
+            return signedObj;
+        } catch (error) {
+            console.error("Sign message error:", error);
+        }
+    }
 
-  async function secondary(program, provider, ledger, userJson) {
-      // decode user
-      const user = JSON.parse(userJson);
-      const more = JSON.parse(user.more);
-      const seller = new PublicKey(more.seller);
-      // rpc
-      try {
-          await program.rpc.purchaseSecondary({
-              accounts: {
-                  buyer: provider.wallet.publicKey,
-                  seller: seller,
-                  boss: BOSS,
-                  ledger: ledger,
-                  systemProgram: SystemProgram.programId,
-              },
-          });
-          // send state to elm
-          app.ports.getCurrentStateListener.send(userJson);
-          // log success
-          console.log("secondary purchase success");
-      } catch (error) {
-          // log error
-          console.log(error.toString());
-          // send error to elm
-          app.ports.purchaseSecondaryFailureListener.send(error.message);
-      }
-  }
+    function download(url) {
+        window.open(url, "_blank");
+    }
+
+    async function submit(program, provider, ledger, price) {
+        try {
+            await program.rpc.submitToEscrow(new BN$9(price), {
+                accounts: {
+                    seller: provider.wallet.publicKey,
+                    ledger,
+                    systemProgram: SystemProgram.programId,
+                }
+            });
+            console.log("Submit to escrow successful.");
+        } catch (error) {
+            console.error("Submit to escrow error:", error);
+        }
+    }
+
+    async function remove(program, provider, ledger) {
+        try {
+            await program.rpc.removeFromEscrow({
+                accounts: {
+                    seller: provider.wallet.publicKey,
+                    ledger,
+                    systemProgram: SystemProgram.programId,
+                }
+            });
+            console.log("Remove from escrow successful.");
+        } catch (error) {
+            console.error("Remove from escrow error:", error);
+        }
+    }
+
+    async function secondary(program, provider, ledger, sellerPubKey) {
+        try {
+            await program.rpc.purchaseSecondary({
+                accounts: {
+                    buyer: provider.wallet.publicKey,
+                    seller: new PublicKey(sellerPubKey),
+                    boss: BOSS,
+                    ledger,
+                    systemProgram: SystemProgram.programId,
+                },
+            });
+            console.log("Secondary purchase successful.");
+        } catch (error) {
+            console.error("Secondary purchase error:", error);
+        }
+    }
 
   // TODO; move this file to root
   // get phantom
-  let phantom = null;
-  let release01PubKey, _ = null;
-  let release02PubKey, __ = null;
+  // let phantom = null;
+  // let release01PubKey, _ = null;
+  // let release02PubKey, __ = null;
   app.ports.connectSender.subscribe(async function (user) {
       // get program public key 01
       [release01PubKey, _] = await PublicKey.findProgramAddress(

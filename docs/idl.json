@@ -1,0 +1,274 @@
+{
+  "version": "0.1.0",
+  "name": "cal_coin",
+  "instructions": [
+    {
+      "name": "registerUser",
+      "docs": [
+        "One-time registration for a user:",
+        "- Skips gateway check if exempt",
+        "- Otherwise checks gateway token",
+        "- Creates a [UserPda] for storing `last_claimed_timestamp`"
+      ],
+      "accounts": [
+        {
+          "name": "dappConfig",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "The global config, used to read `exempt_address`"
+          ]
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "The user paying for the new PDA"
+          ]
+        },
+        {
+          "name": "gatewayToken",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "The user’s gateway token => verified in code if not exempt"
+          ]
+        },
+        {
+          "name": "userPda",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "The user’s PDA => fails if it already exists"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "For create/init"
+          ]
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim",
+      "docs": [
+        "Claim tokens repeatedly:",
+        "- If exempt, skip gateway check",
+        "- Otherwise do gateway check",
+        "- Enforces 60s cooldown",
+        "- Mints to user’s ATA at ~1.25 tokens/min"
+      ],
+      "accounts": [
+        {
+          "name": "dappConfig",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "The global config (for reading `exempt_address`, `mint_authority_bump`, etc.)"
+          ]
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "The user claiming tokens"
+          ]
+        },
+        {
+          "name": "gatewayToken",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "The user’s gateway token => verified if not exempt"
+          ]
+        },
+        {
+          "name": "userPda",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "The user’s PDA (must exist; we update `last_claimed_timestamp`)"
+          ]
+        },
+        {
+          "name": "tokenMint",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "The token mint => must match dapp_config.token_mint"
+          ]
+        },
+        {
+          "name": "mintAuthority",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "The “mint authority” PDA => seeds = [\"mint_authority\"], bump = dapp_config.mint_authority_bump"
+          ]
+        },
+        {
+          "name": "userAta",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "The user’s ATA => auto-create if needed"
+          ]
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "associatedTokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "setExempt",
+      "docs": [
+        "Sets a new exempt address. Only the *current* exempt address may do so.",
+        "If `exempt_address` in DappConfig is 0, then the first caller is allowed",
+        "(optional logic – you can require it not be 0)."
+      ],
+      "accounts": [
+        {
+          "name": "dappConfig",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "currentExempt",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Must be the current exempt address or zero if uninitialized"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "newExempt",
+          "type": "publicKey"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "DappConfig",
+      "docs": [
+        "A global config storing the Gatekeeper network for gateway, plus",
+        "the Mint used for distribution, and an \"exempt_address\"."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "gatekeeperNetwork",
+            "docs": [
+              "Gatekeeper network for gateway checks if used"
+            ],
+            "type": "publicKey"
+          },
+          {
+            "name": "tokenMint",
+            "docs": [
+              "The token mint used for distribution"
+            ],
+            "type": "publicKey"
+          },
+          {
+            "name": "mintAuthorityBump",
+            "docs": [
+              "Bump for the [MintAuthorityPda], so we can sign"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "exemptAddress",
+            "docs": [
+              "The address that is exempt from Gateway checks"
+            ],
+            "type": "publicKey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MintAuthorityPda",
+      "docs": [
+        "A separate PDA that holds the bump for mint authority"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UserPda",
+      "docs": [
+        "Per-user account tracking last claim"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "publicKey"
+          },
+          {
+            "name": "lastClaimedTimestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "CooldownNotMet",
+      "msg": "Must wait 60s before claiming again."
+    },
+    {
+      "code": 6001,
+      "name": "GatewayCheckFailed",
+      "msg": "Gateway token check failed."
+    },
+    {
+      "code": 6002,
+      "name": "NotExemptAddress",
+      "msg": "Signer is not the current exempt address."
+    }
+  ]
+}
