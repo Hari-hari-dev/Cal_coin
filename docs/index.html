@@ -2,10 +2,217 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>My Placeholder Page</title>
+  <title>Solana Anchor DApp</title>
+  <!-- Solana Web3.js -->
+  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js" crossorigin></script>
+  <!-- Anchor UMD (using a moderately recent version) -->
+  <script src="https://unpkg.com/@project-serum/anchor@0.26.0/dist/browser/index.js" crossorigin></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; }
+    button { margin: 0.5em 0; }
+    input { margin: 0.5em; }
+    #status { margin-top: 1em; padding: 0.5em; border: 1px solid #ccc; }
+  </style>
 </head>
 <body>
-  <h1>Hello from GitHub Pages</h1>
-  <p>This is a simple placeholder. Update this file with your own content!</p>
-</body>
-</html>
+  <!-- Wallet Connect Section -->
+  <button id="connectButton">Connect Wallet (Phantom)</button>
+  <p id="walletAddress" style="font-weight: bold;"></p>
+
+  <!-- Set Exempt Section -->
+  <h3>Set Exempt Address</h3>
+  <p>
+    Public Key to exempt: 
+    <input type="text" id="exemptPubkeyInput" size="45" placeholder="Enter public key">
+    <button id="setExemptButton" disabled>Set Exempt</button>
+  </p>
+
+  <!-- Register User Section -->
+  <h3>Register User</h3>
+  <p>
+    <button id="registerButton" disabled>Register User</button>
+  </p>
+
+  <!-- Claim Tokens Section -->
+  <h3>Claim Tokens</h3>
+  <p>
+    <button id="claimButton" disabled>Claim Rewards</button>
+  </p>
+
+  <!-- Status Message Area -->
+  <div id="status"></div>
+
+  <script>
+    // Global variables for wallet, program, connection, etc.
+    const statusEl = document.getElementById('status');
+    const walletAddressEl = document.getElementById('walletAddress');
+    const connectButton = document.getElementById('connectButton');
+    const setExemptButton = document.getElementById('setExemptButton');
+    const registerButton = document.getElementById('registerButton');
+    const claimButton = document.getElementById('claimButton');
+    let provider = null, program = null, connection = null, walletPublicKey = null;
+    let dappConfigPda = null, mintAuthPda = null, tokenMintPubkey = null;
+
+    // Replace the following with your full IDL JSON
+    const idl = /* Paste your full IDL JSON here as a JavaScript object */ {};
+
+    // Program ID (from declare_id!)
+    const programId = new anchor.web3.PublicKey("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
+
+    // Connect wallet button handler
+    connectButton.onclick = async () => {
+      // Check for Phantom Wallet injected provider
+      provider = window.phantom?.solana || window.solana;
+      if (!provider || !provider.isPhantom) {
+        statusEl.textContent = "Phantom wallet not found. Please install Phantom.";
+        return;
+      }
+      try {
+        await provider.connect();
+        walletPublicKey = provider.publicKey;
+        walletAddressEl.textContent = "Wallet Connected: " + walletPublicKey.toString();
+        statusEl.textContent = "Wallet connected successfully.";
+        console.log("Connected wallet:", walletPublicKey.toString());
+        // Initialize connection on devnet
+        connection = new anchor.web3.Connection(anchor.web3.clusterApiUrl('devnet'), 'confirmed');
+        const anchorProvider = new anchor.AnchorProvider(connection, provider, anchor.AnchorProvider.defaultOptions());
+        anchor.setProvider(anchorProvider);
+        // Initialize the Anchor program from the IDL
+        program = new anchor.Program(idl, programId, anchorProvider);
+        console.log("Program initialized:", program.programId.toString());
+
+        // Derive the dapp_config PDA (seed should match your program)
+        let dappConfig = await anchor.web3.PublicKey.findProgramAddress(
+          [Buffer.from("dapp-config")],
+          programId
+        );
+        dappConfigPda = dappConfig[0];
+        console.log("dapp_config PDA:", dappConfigPda.toString());
+
+        // Derive mint_authority PDA
+        let mintAuth = await anchor.web3.PublicKey.findProgramAddress(
+          [Buffer.from("mint-authority")],
+          programId
+        );
+        mintAuthPda = mintAuth[0];
+        console.log("mint_authority PDA:", mintAuthPda.toString());
+
+        // Try to fetch the dapp_config account to get tokenMint (if initialized)
+        try {
+          const configAccount = await program.account.dappConfig.fetch(dappConfigPda);
+          tokenMintPubkey = configAccount.tokenMint;
+          console.log("Token mint fetched:", tokenMintPubkey.toString());
+        } catch (e) {
+          console.warn("dapp_config account not found; token mint unavailable.");
+        }
+        // Enable action buttons
+        setExemptButton.disabled = false;
+        registerButton.disabled = false;
+        claimButton.disabled = false;
+
+      } catch (err) {
+        console.error("Wallet connection error:", err);
+        statusEl.textContent = "Error connecting wallet: " + (err.message || err);
+      }
+    };
+
+    // Set Exempt handler
+    setExemptButton.onclick = async () => {
+      const input = document.getElementById('exemptPubkeyInput').value.trim();
+      if (!input) {
+        statusEl.textContent = "Please enter a public key.";
+        return;
+      }
+      let newExempt;
+      try {
+        newExempt = new anchor.web3.PublicKey(input);
+      } catch {
+        statusEl.textContent = "Invalid public key.";
+        return;
+      }
+      // For this demo, we assume current_exempt is the connected wallet.
+      try {
+        await program.methods
+          .setExempt(newExempt)
+          .accounts({
+            dappConfig: dappConfigPda,
+            currentExempt: walletPublicKey
+          })
+          .rpc();
+        statusEl.textContent = "✅ set_exempt successful for " + newExempt.toString();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "❌ set_exempt failed: " + (err.message || err);
+      }
+    };
+
+    // Register User handler
+    registerButton.onclick = async () => {
+      if (!walletPublicKey) {
+        statusEl.textContent = "Connect wallet first.";
+        return;
+      }
+      // Derive user PDA (using seed "user" + walletPubkey)
+      const userPda = (await anchor.web3.PublicKey.findProgramAddress(
+        [Buffer.from("user"), walletPublicKey.toBuffer()],
+        programId
+      ))[0];
+      console.log("User PDA:", userPda.toString());
+      // You may also need to derive an Associated Token Account for the user.
+      // For this demo, we assume the dapp_config account stores the token mint.
+      if (!tokenMintPubkey) {
+        statusEl.textContent = "Token mint not available from dapp_config.";
+        return;
+      }
+      // ATA derivation using the standard associated token program
+      const TOKEN_PROGRAM_ID = new anchor.web3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+      const ASSOCIATED_PROGRAM_ID = new anchor.web3.PublicKey("ATokenGPvbdGVtpfHhQZC2bH7m7QEupTQYxMtn6YDf");
+      const userAta = (await anchor.web3.PublicKey.findProgramAddress(
+        [
+          walletPublicKey.toBuffer(),
+          TOKEN_PROGRAM_ID.toBuffer(),
+          tokenMintPubkey.toBuffer()
+        ],
+        ASSOCIATED_PROGRAM_ID
+      ))[0];
+      console.log("User ATA:", userAta.toString());
+
+      try {
+        await program.methods
+          .registerUser()
+          .accounts({
+            dappConfig: dappConfigPda,
+            user: walletPublicKey,
+            // Phantom does not expose gateway token info so we use the wallet as a dummy account.
+            gatewayToken: walletPublicKey,
+            userPda: userPda,
+            systemProgram: anchor.web3.SystemProgram.programId,
+            rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+            tokenMint: tokenMintPubkey,
+            mintAuthority: mintAuthPda,
+            userAta: userAta,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            associatedTokenProgram: ASSOCIATED_PROGRAM_ID
+          })
+          .rpc();
+        statusEl.textContent = "✅ register_user successful, PDA: " + userPda.toString();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "❌ register_user failed: " + (err.message || err);
+      }
+    };
+
+    // Claim Tokens handler
+    claimButton.onclick = async () => {
+      if (!walletPublicKey) {
+        statusEl.textContent = "Connect wallet first.";
+        return;
+      }
+      // Derive user PDA again (must exist)
+      const userPda = (await anchor.web3.PublicKey.findProgramAddress(
+        [Buffer.from("user"), walletPublicKey.toBuffer()],
+        programId
+      ))[0];
+      // Derive ATA (as above)
+      const TOKEN_PROGRAM_ID = new anchor.web3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+      const ASSOCIATED_PROGRAM_ID = new anchor.web3.PublicKey("ATokenGPvbdGVtpfHhQZC2bH7m7QEupTQYxM
