@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const newExempt = new solanaWeb3.PublicKey(exemptAddressInput);
       const [dappConfigPda] = await solanaWeb3.PublicKey.findProgramAddress(
-        [Buffer.from('dapp_config')],
+        [new TextEncoder().encode('dapp_config')],
         programId
       );
       await program.methods
@@ -88,7 +88,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   registerUserButton.onclick = async () => {
     try {
       const [userPda] = await solanaWeb3.PublicKey.findProgramAddress(
-        [Buffer.from('user'), walletAdapter.publicKey.toBuffer()],
+        [new TextEncoder().encode('user'), walletAdapter.publicKey.toBytes()],
         programId
       );
       await program.methods
@@ -109,7 +109,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   claimTokensButton.onclick = async () => {
     try {
       const [userPda] = await solanaWeb3.PublicKey.findProgramAddress(
-        [Buffer.from('user'), walletAdapter.publicKey.toBuffer()],
+        [new TextEncoder().encode('user'), walletAdapter.publicKey.toBytes()],
         programId
       );
       await program.methods
