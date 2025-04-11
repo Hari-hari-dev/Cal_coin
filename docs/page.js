@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const idl = await fetch('./idl.json').then(res => res.json());
 
   // Use the program address from the IDL metadata.
-  const programId = new window.solanaWeb3.PublicKey("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
+  const programId = new solanaWeb3.PublicKey("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
 
   // Derive the global dapp_config PDA using a string seed encoded to Uint8Array.
   const [dappConfigPda] = solanaWeb3.PublicKey.findProgramAddressSync(
