@@ -4,9 +4,11 @@
   <meta charset="UTF-8">
   <title>Solana DApp</title>
 
-  <!-- Buffer Polyfill -->
-  <script src="https://cdn.jsdelivr.net/npm/buffer@6.0.3/index.min.js" 
-    onload="window.Buffer = buffer.Buffer"></script>
+  <!-- Corrected Buffer Polyfill -->
+  <script type="module">
+    import { Buffer } from "https://esm.sh/[email protected]?bundle";
+    window.Buffer = Buffer;
+  </script>
 
   <!-- Load Solana Web3.js -->
   <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
@@ -31,15 +33,15 @@
   <!-- Set Exempt Address -->
   <h3>Set Exempt Address</h3>
   <input type="text" id="exemptAddress" placeholder="Enter Public Key">
-  <button id="setExempt">Set Exempt</button>
+  <button id="setExempt" disabled>Set Exempt</button>
 
   <!-- Register User -->
   <h3>Register User</h3>
-  <button id="registerUser">Register User</button>
+  <button id="registerUser" disabled>Register User</button>
 
   <!-- Claim Tokens -->
   <h3>Claim Tokens</h3>
-  <button id="claimTokens">Claim Tokens</button>
+  <button id="claimTokens" disabled>Claim Tokens</button>
 
   <!-- Status Display -->
   <div id="status"></div>
