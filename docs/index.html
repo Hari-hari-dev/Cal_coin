@@ -72,12 +72,19 @@
             statusDiv.textContent = 'Wallet connected successfully.';
 
             // Initialize Anchor (v0.24) provider and program
-            const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('devnet'), 'confirmed');
-            // Use anchor.Provider
+            const connection = new solanaWeb3.Connection(
+              solanaWeb3.clusterApiUrl('devnet'),
+              'confirmed'
+            );
+
+            // Use anchor.Provider without defaultOptions
             const anchorProvider = new anchor.Provider(
               connection,
               provider,
-              anchor.Provider.defaultOptions() // or your own { skipPreflight: false, commitment: 'confirmed' }
+              {
+                skipPreflight: false,
+                commitment: 'confirmed'
+              }
             );
 
             anchor.setProvider(anchorProvider);
