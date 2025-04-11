@@ -45618,20 +45618,20 @@
   // let phantom = null;
   // let release01PubKey, _ = null;
   // let release02PubKey, __ = null;
-  app.ports.connectSender.subscribe(async function (user) {
-      // get program public key 01
-      [release01PubKey, _] = await PublicKey.findProgramAddress(
-          [textEncoder.encode(ACCOUNT_SEED_01)],
-          programID
-      );
-      // get program public key 02
-      [release02PubKey, __] = await PublicKey.findProgramAddress(
-          [textEncoder.encode(ACCOUNT_SEED_02)],
-          programID
-      );
-      // get phantom
-      phantom = await getPhantom(user);
-  });
+  // app.ports.connectSender.subscribe(async function (user) {
+  //     // get program public key 01
+  //     [release01PubKey, _] = await PublicKey.findProgramAddress(
+  //         [textEncoder.encode(ACCOUNT_SEED_01)],
+  //         programID
+  //     );
+  //     // get program public key 02
+  //     [release02PubKey, __] = await PublicKey.findProgramAddress(
+  //         [textEncoder.encode(ACCOUNT_SEED_02)],
+  //         programID
+  //     );
+  //     // get phantom
+  //     phantom = await getPhantom(user);
+  // });
 
   // get current state as soon as user logs in
   app.ports.getCurrentStateSender.subscribe(async function (user) {
