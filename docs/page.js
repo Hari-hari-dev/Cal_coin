@@ -2,6 +2,24 @@
 window.anchor = window.anchor || {};
 const anchor = window.anchor;
 
+// Helper function to derive the Associated Token Account (ATA) address.
+// This uses the standard derivation algorithm for associated token accounts.
+async function findAssociatedTokenAddress(walletAddress, tokenMintAddress) {
+  // Associated token program ID for the standard ATA derivation
+  const associatedTokenProgramId = new solanaWeb3.PublicKey('ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq');
+  // The SPL Token 2022 program ID has been provided below.
+  const tokenProgramId = new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
+  const [ata] = await solanaWeb3.PublicKey.findProgramAddress(
+    [
+      walletAddress.toBuffer(),
+      tokenProgramId.toBuffer(),
+      tokenMintAddress.toBuffer(),
+    ],
+    associatedTokenProgramId
+  );
+  return ata;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const connectWalletButton = document.getElementById('connectWallet');
   const setExemptButton = document.getElementById('setExempt');
@@ -18,6 +36,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Solana program ID
   const programId = new solanaWeb3.PublicKey('BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex');
+
+  // Derive the dapp_config PDA (global config account)
+  const [dappConfigPda] = await solanaWeb3.PublicKey.findProgramAddress(
+    [new TextEncoder().encode('dapp_config')],
+    programId
+  );
 
   // Connect to Phantom Wallet
   connectWalletButton.onclick = async () => {
@@ -58,7 +82,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
-  // Set Exempt Address
+  // Set Exempt Address remains unchanged.
   setExemptButton.onclick = async () => {
     const exemptAddressInput = document.getElementById('exemptAddress').value.trim();
     if (!exemptAddressInput) {
@@ -67,10 +91,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     try {
       const newExempt = new solanaWeb3.PublicKey(exemptAddressInput);
-      const [dappConfigPda] = await solanaWeb3.PublicKey.findProgramAddress(
-        [new TextEncoder().encode('dapp_config')],
-        programId
-      );
       await program.methods
         .setExempt(newExempt)
         .accounts({
@@ -91,17 +111,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         [new TextEncoder().encode('user'), walletAdapter.publicKey.toBytes()],
         programId
       );
-      const [dappConfigPda] = await solanaWeb3.PublicKey.findProgramAddress(
-        [new TextEncoder().encode('dapp_config')],
-        programId
-      );
       await program.methods
         .registerUser()
         .accounts({
-          user: walletAdapter.publicKey,
-          userPda,
           dappConfig: dappConfigPda,
-          systemProgram: solanaWeb3.SystemProgram.programId
+          user: walletAdapter.publicKey,
+          gatewayToken: walletAdapter.publicKey, // gateway token is the user's address
+          userPda: userPda,
+          systemProgram: solanaWeb3.SystemProgram.programId,
+          rent: solanaWeb3.SYSVAR_RENT_PUBKEY,
         })
         .rpc();
       statusDiv.textContent = 'User registered successfully.';
@@ -117,17 +135,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         [new TextEncoder().encode('user'), walletAdapter.publicKey.toBytes()],
         programId
       );
-      const [dappConfigPda] = await solanaWeb3.PublicKey.findProgramAddress(
-        [new TextEncoder().encode('dapp_config')],
+      // Fetch the dapp_config account to get the token mint and mint authority bump.
+      const dappConfigAccount = await program.account.dappConfig.fetch(dappConfigPda);
+      const tokenMint = new solanaWeb3.PublicKey(dappConfigAccount.token_mint.toString());
+
+      // Derive mint authority PDA using seed "mint_authority".
+      const [mintAuthorityPda] = await solanaWeb3.PublicKey.findProgramAddress(
+        [new TextEncoder().encode('mint_authority')],
         programId
       );
+
+      // Derive the user's Associated Token Account (ATA) using their wallet and the fetched token mint.
+      const userAta = await findAssociatedTokenAddress(walletAdapter.publicKey, tokenMint);
+
       await program.methods
         .claim()
         .accounts({
-          user: walletAdapter.publicKey,
-          userPda,
           dappConfig: dappConfigPda,
-          systemProgram: solanaWeb3.SystemProgram.programId
+          user: walletAdapter.publicKey,
+          gatewayToken: walletAdapter.publicKey, // gateway token is the user's address
+          userPda: userPda,
+          tokenMint: tokenMint,
+          mintAuthority: mintAuthorityPda,
+          userAta: userAta,
+          tokenProgram: new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"), // Provided Token Program ID
+          associatedTokenProgram: new solanaWeb3.PublicKey("ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq"),
+          systemProgram: solanaWeb3.SystemProgram.programId,
+          rent: solanaWeb3.SYSVAR_RENT_PUBKEY,
         })
         .rpc();
       statusDiv.textContent = 'Tokens claimed successfully.';
