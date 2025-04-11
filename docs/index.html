@@ -4,13 +4,10 @@
   <meta charset="UTF-8">
   <title>Solana DApp</title>
 
-  <!-- Corrected Buffer Polyfill -->
-
-
   <!-- Load Solana Web3.js -->
   <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
 
-  <!-- Load the UMD bundle -->
+  <!-- Load the UMD bundle (which includes anchor and the Buffer polyfill) -->
   <script src="./bundle.js"></script>
 
   <style>
@@ -44,6 +41,10 @@
   <div id="status"></div>
 
   <script>
+    // Ensure anchor is accessible in this script by assigning from window.
+    window.anchor = window.anchor || {};
+    const anchor = window.anchor;
+
     document.addEventListener('DOMContentLoaded', async () => {
       const connectWalletButton = document.getElementById('connectWallet');
       const setExemptButton = document.getElementById('setExempt');
@@ -72,7 +73,11 @@
 
             // Initialize Anchor provider and program
             const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('devnet'), 'confirmed');
-            const anchorProvider = new anchor.AnchorProvider(connection, provider, anchor.AnchorProvider.defaultOptions());
+            const anchorProvider = new anchor.AnchorProvider(
+              connection, 
+              provider, 
+              anchor.AnchorProvider.defaultOptions()
+            );
             anchor.setProvider(anchorProvider);
             program = new anchor.Program(idl, programId, anchorProvider);
 
