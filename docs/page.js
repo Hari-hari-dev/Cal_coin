@@ -2,7 +2,6 @@
 window.anchor = window.anchor || {};
 const anchor = window.anchor;
 // If the default export is nested (e.g. due to default export wrapping), use it:
-const solanaWeb3 = anchor.default || anchor;
 
 // Create a TextEncoder to convert seed strings to Uint8Array.
 const textEncoder = new TextEncoder();
