@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@coral-xyz/anchor": "^0.31.0",
     "@project-serum/anchor": "^0.24.2",
     "buffer": "^6.0.3"
   },

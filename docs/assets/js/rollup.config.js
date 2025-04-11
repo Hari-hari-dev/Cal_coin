@@ -1,11 +1,11 @@
 import commonjs from '@rollup/plugin-commonjs';
 import resolve from '@rollup/plugin-node-resolve';
 import nodePolyfills from 'rollup-plugin-node-polyfills';
-import typescript from '@rollup/plugin-typescript';
+//import typescript from '@rollup/plugin-typescript';
 import json from '@rollup/plugin-json';
 
 export default {
-    input: 'anchor/main.js',
+    input: 'index.js',
     output: {
         file: 'bundle.js',
         format: 'umd', // Use UMD for global usage
@@ -19,7 +19,7 @@ export default {
           preferBuiltins: false
         }),
         resolve({ browser: true }),
-        typescript({ target: "es2019" }),
+        //typescript({ target: "es2019" }),
         json()
     ]
 };
