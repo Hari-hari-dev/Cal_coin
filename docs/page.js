@@ -1,6 +1,6 @@
 // Anchor is attached to window by bundle.js; alias it locally.
-window.anchor = window.anchor || {};
-const anchor = window.anchor;
+window.solanaWeb3 = window.solanaWeb3 || {};
+const solanaWeb3 = window.solanaWeb3;
 // If the default export is nested (e.g. due to default export wrapping), use it:
 
 // Create a TextEncoder to convert seed strings to Uint8Array.
