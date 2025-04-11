@@ -1,172 +1,82 @@
-// Anchor is attached to window by bundle.js; alias it locally.
-window.anchor = window.anchor || {};
-const anchor = window.anchor;
+import { Connection, PublicKey, SystemProgram, clusterApiUrl } from "@solana/web3.js";
+import { AnchorProvider, Program } from "@project-serum/anchor";
+import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import idl from "./idl.json";  // Anchor IDL for the program
 
-// Helper function to derive the Associated Token Account (ATA) address.
-// This uses the standard derivation algorithm for associated token accounts.
-async function findAssociatedTokenAddress(walletAddress, tokenMintAddress) {
-  // Associated token program ID for the standard ATA derivation.
-  const associatedTokenProgramId = new solanaWeb3.PublicKey('ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq');
-  // Use the provided Token Program ID.
-  const tokenProgramId = new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
-  const [ata] = await solanaWeb3.PublicKey.findProgramAddress(
-    [
-      walletAddress.toBuffer(),        // using toBuffer() instead of toBytes()
-      tokenProgramId.toBuffer(),
-      tokenMintAddress.toBuffer(),
-    ],
-    associatedTokenProgramId
-  );
-  return ata;
-}
+// Configuration for the Solana connection
+const network = clusterApiUrl("devnet");          // Use the appropriate cluster (devnet/mainnet)
+const commitment = "processed";
+const connection = new Connection(network, commitment);
+const programId = new PublicKey(idl.metadata.address);
+const textEncoder = new TextEncoder();
+const tokenMintPubkey = new PublicKey("YourTokenMintAddressHere");  // replace with actual token mint
 
-document.addEventListener('DOMContentLoaded', async () => {
-  const connectWalletButton = document.getElementById('connectWallet');
-  const setExemptButton = document.getElementById('setExempt');
-  const registerUserButton = document.getElementById('registerUser');
-  const claimTokensButton = document.getElementById('claimTokens');
-  const walletAddressDiv = document.getElementById('walletAddress');
-  const statusDiv = document.getElementById('status');
+// Phantom wallet interface (injected by the Phantom extension)
+const wallet = window.solana;
 
-  let walletAdapter = null;
-  let program = null;
+(async () => {
+  if (!wallet || !wallet.isPhantom) {
+    throw new Error("Phantom wallet not found");
+  }
+  // Connect to Phantom wallet (prompts user approval)
+  await wallet.connect();
 
-  // Load IDL
-  const idl = await fetch('./idl.json').then(res => res.json());
+  // Initialize Anchor provider and program using the connected wallet
+  const provider = new AnchorProvider(connection, wallet, { preflightCommitment: commitment });
+  const program = new Program(idl, programId, provider);
 
-  // Solana program ID
-  const programId = new solanaWeb3.PublicKey('BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex');
-
-  // Derive the global dapp_config PDA using Buffer.
-  const [dappConfigPda] = await solanaWeb3.PublicKey.findProgramAddress(
-    [Buffer.from('dapp_config', 'utf8')],
+  // Derive required Program Derived Addresses (PDAs)
+  const [userPda, userBump] = PublicKey.findProgramAddressSync(
+    [textEncoder.encode("user"), wallet.publicKey.toBytes()],
     programId
   );
+  const [vaultPda, vaultBump] = PublicKey.findProgramAddressSync(
+    [textEncoder.encode("vault")],
+    programId
+  );
+  const [userTokenAccount, ataBump] = PublicKey.findProgramAddressSync(
+    [wallet.publicKey.toBytes(), TOKEN_PROGRAM_ID.toBytes(), tokenMintPubkey.toBytes()],
+    ASSOCIATED_TOKEN_PROGRAM_ID
+  );
+  // (Bump values like userBump, vaultBump, ataBump are returned for completeness but not directly used below)
 
-  // Connect to Phantom Wallet
-  connectWalletButton.onclick = async () => {
-    if (window.solana && window.solana.isPhantom) {
-      try {
-        await window.solana.connect();
-        walletAdapter = window.solana;
-        walletAddressDiv.textContent = `Connected: ${walletAdapter.publicKey.toString()}`;
-        statusDiv.textContent = 'Wallet connected successfully.';
-
-        // Initialize Anchor provider (v0.31.0 uses AnchorProvider)
-        const connection = new solanaWeb3.Connection(
-          solanaWeb3.clusterApiUrl('devnet'),
-          'confirmed'
-        );
-        const anchorProvider = new anchor.AnchorProvider(
-          connection,
-          walletAdapter,
-          {
-            skipPreflight: false,
-            commitment: 'confirmed'
-          }
-        );
-        anchor.setProvider(anchorProvider);
-
-        // Create your program client
-        program = new anchor.Program(idl, programId, anchorProvider);
-
-        // Enable buttons after connection
-        setExemptButton.disabled = false;
-        registerUserButton.disabled = false;
-        claimTokensButton.disabled = false;
-      } catch (err) {
-        statusDiv.textContent = `Error connecting wallet: ${err.message}`;
-      }
-    } else {
-      statusDiv.textContent = 'Phantom wallet not found. Please install it.';
-    }
+  // Register a new user account (calls the Anchor program's registerUser instruction)
+  window.registerUser = async function() {
+    await program.methods
+      .registerUser()  // no arguments in this example
+      .accounts({
+        user: userPda,
+        authority: wallet.publicKey,
+        systemProgram: SystemProgram.programId
+      })
+      .rpc();
   };
 
-  // Set Exempt Address
-  setExemptButton.onclick = async () => {
-    const exemptAddressInput = document.getElementById('exemptAddress').value.trim();
-    if (!exemptAddressInput) {
-      statusDiv.textContent = 'Please enter a public key.';
-      return;
-    }
-    try {
-      const newExempt = new solanaWeb3.PublicKey(exemptAddressInput);
-      await program.methods
-        .setExempt(newExempt)
-        .accounts({
-          dappConfig: dappConfigPda,
-          currentExempt: walletAdapter.publicKey
-        })
-        .rpc();
-      statusDiv.textContent = `Exempt address set to: ${newExempt.toString()}`;
-    } catch (err) {
-      statusDiv.textContent = `Error setting exempt address: ${err.message}`;
-    }
+  // Set exemptions for the user (calls the Anchor program's setExemptions instruction)
+  window.setExemptions = async function(exemptFlag) {
+    await program.methods
+      .setExemptions(exemptFlag)  // pass boolean or appropriate parameter as required
+      .accounts({
+        user: userPda,
+        authority: wallet.publicKey
+      })
+      .rpc();
   };
 
-  // Register User
-  registerUserButton.onclick = async () => {
-    try {
-      const [userPda] = await solanaWeb3.PublicKey.findProgramAddress(
-        [Buffer.from('user', 'utf8'), walletAdapter.publicKey.toBuffer()],
-        programId
-      );
-      await program.methods
-        .registerUser()
-        .accounts({
-          dappConfig: dappConfigPda,
-          user: walletAdapter.publicKey,
-          gatewayToken: walletAdapter.publicKey, // using user's address as gateway token
-          userPda: userPda,
-          systemProgram: solanaWeb3.SystemProgram.programId,
-          rent: solanaWeb3.SYSVAR_RENT_PUBKEY,
-        })
-        .rpc();
-      statusDiv.textContent = 'User registered successfully.';
-    } catch (err) {
-      statusDiv.textContent = `Error registering user: ${err.message}`;
-    }
+  // Claim tokens for the user (calls the Anchor program's claimTokens instruction)
+  window.claimTokens = async function() {
+    await program.methods
+      .claimTokens()
+      .accounts({
+        user: userPda,
+        authority: wallet.publicKey,
+        vault: vaultPda,
+        userTokenAccount: userTokenAccount,
+        tokenMint: tokenMintPubkey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId
+      })
+      .rpc();
   };
-
-  // Claim Tokens
-  claimTokensButton.onclick = async () => {
-    try {
-      const [userPda] = await solanaWeb3.PublicKey.findProgramAddress(
-        [Buffer.from('user', 'utf8'), walletAdapter.publicKey.toBuffer()],
-        programId
-      );
-      // Fetch the dapp_config account to get the token mint.
-      const dappConfigAccount = await program.account.dappConfig.fetch(dappConfigPda);
-      const tokenMint = new solanaWeb3.PublicKey(dappConfigAccount.token_mint.toString());
-
-      // Derive mint authority PDA using the seed "mint_authority".
-      const [mintAuthorityPda] = await solanaWeb3.PublicKey.findProgramAddress(
-        [Buffer.from('mint_authority', 'utf8')],
-        programId
-      );
-
-      // Derive the user's Associated Token Account (ATA) using their wallet and the fetched token mint.
-      const userAta = await findAssociatedTokenAddress(walletAdapter.publicKey, tokenMint);
-
-      await program.methods
-        .claim()
-        .accounts({
-          dappConfig: dappConfigPda,
-          user: walletAdapter.publicKey,
-          gatewayToken: walletAdapter.publicKey, // using user's address as gateway token
-          userPda: userPda,
-          tokenMint: tokenMint,
-          mintAuthority: mintAuthorityPda,
-          userAta: userAta,
-          tokenProgram: new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"),
-          associatedTokenProgram: new solanaWeb3.PublicKey("ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq"),
-          systemProgram: solanaWeb3.SystemProgram.programId,
-          rent: solanaWeb3.SYSVAR_RENT_PUBKEY,
-        })
-        .rpc();
-      statusDiv.textContent = 'Tokens claimed successfully.';
-    } catch (err) {
-      statusDiv.textContent = `Error claiming tokens: ${err.message}`;
-    }
-  };
-});
+})();

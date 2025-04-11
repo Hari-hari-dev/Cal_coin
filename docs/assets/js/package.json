@@ -4,8 +4,9 @@
   "private": true,
   "dependencies": {
     "@coral-xyz/anchor": "0.31.0",
+    "@solana/web3.js": "^2.0.0",
     "borsh": "^2.0.0",
-    "buffer": "^6.0.3"
+    "rollup-plugin-polyfill-node": "^0.13.0"
   },
   "scripts": {
     "build": "sh sync-idl.sh; rollup --config"
