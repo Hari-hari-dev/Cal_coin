@@ -11,13 +11,17 @@ const textEncoder = new TextEncoder();
  */
 async function findAssociatedTokenAddress(walletAddress, tokenMintAddress) {
   // Associated token program ID for standard ATA derivation.
-  const associatedTokenProgramId = new anchor.PublicKey('ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq');
+  const associatedTokenProgramId = new anchor.PublicKey(
+    'ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq'
+  );
   // Provided Token Program ID.
-  const tokenProgramId = new anchor.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
+  const tokenProgramId = new anchor.PublicKey(
+    "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+  );
   // Derive the ATA using Uint8Array seeds.
   const [ata] = anchor.PublicKey.findProgramAddressSync(
     [
-      walletAddress.toBytes(), // replaced toBuffer() with toBytes()
+      walletAddress.toBytes(), // using .toBytes() instead of .toBuffer()
       tokenProgramId.toBytes(),
       tokenMintAddress.toBytes()
     ],
@@ -37,11 +41,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   let walletAdapter = null;
   let program = null;
 
-  // Load IDL.
+  // Load the IDL. Make sure that idl.json now includes a metadata.address field.
   const idl = await fetch('./idl.json').then(res => res.json());
 
-  // Solana program ID from the IDL metadata.
-  const programId = new anchor.PublicKey("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
+  // Get the program ID from the idl metadata.
+  const programId = new anchor.PublicKey(idl.metadata.address);
 
   // Derive the global dapp_config PDA using a string seed encoded to Uint8Array.
   const [dappConfigPda] = anchor.PublicKey.findProgramAddressSync(
@@ -59,7 +63,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         statusDiv.textContent = 'Wallet connected successfully.';
 
         // Initialize connection and Anchor provider.
-        const connection = new anchor.Connection(anchor.clusterApiUrl('devnet'), 'confirmed');
+        const connection = new anchor.Connection(
+          anchor.clusterApiUrl('devnet'),
+          'confirmed'
+        );
         const anchorProvider = new anchor.AnchorProvider(
           connection,
           walletAdapter,
