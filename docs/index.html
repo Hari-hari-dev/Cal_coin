@@ -5,9 +5,9 @@
   <title>Solana DApp</title>
 
   <!-- Corrected Buffer Polyfill -->
-  <script type="module">
-    import { Buffer } from "https://esm.sh/[email protected]?bundle";
-    window.Buffer = Buffer;
+  <script src="https://cdn.jsdelivr.net/npm/buffer-polyfill@6.0.3/dist/buffer.umd.cjs"></script>
+  <script>
+    window.Buffer = buffer.Buffer;
   </script>
 
   <!-- Load Solana Web3.js -->
