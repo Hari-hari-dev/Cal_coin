@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Solana DApp (Anchor v0.24.2)</title>
+  <title>Solana DApp (Anchor v0.31.0)</title>
 
   <!-- Load Solana Web3.js -->
   <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
 
-  <!-- Load your UMD bundle (which should include Anchor v0.24.2) -->
+  <!-- Load your UMD bundle (which should include Anchor v0.31.0) -->
   <script src="./bundle.js"></script>
 
   <style>
@@ -18,7 +18,7 @@
   </style>
 </head>
 <body>
-  <h1>Solana DApp (Anchor v0.24.2)</h1>
+  <h1>Solana DApp (Anchor v0.31.0)</h1>
 
   <!-- Wallet Connection -->
   <button id="connectWallet">Connect Wallet</button>
@@ -41,7 +41,7 @@
   <div id="status"></div>
 
   <script>
-    // For older Anchor, make sure it’s on window, then alias it locally.
+    // Anchor is attached to window by bundle.js; alias it locally.
     window.anchor = window.anchor || {};
     const anchor = window.anchor;
 
@@ -53,7 +53,7 @@
       const walletAddressDiv = document.getElementById('walletAddress');
       const statusDiv = document.getElementById('status');
 
-      let provider = null;
+      let walletAdapter = null;
       let program = null;
 
       // Load IDL
@@ -67,26 +67,23 @@
         if (window.solana && window.solana.isPhantom) {
           try {
             await window.solana.connect();
-            provider = window.solana;
-            walletAddressDiv.textContent = `Connected: ${provider.publicKey.toString()}`;
+            walletAdapter = window.solana;
+            walletAddressDiv.textContent = `Connected: ${walletAdapter.publicKey.toString()}`;
             statusDiv.textContent = 'Wallet connected successfully.';
 
-            // Initialize Anchor (v0.24) provider and program
+            // Initialize Anchor provider (v0.31.0 uses AnchorProvider)
             const connection = new solanaWeb3.Connection(
               solanaWeb3.clusterApiUrl('devnet'),
               'confirmed'
             );
-
-            // Use anchor.Provider without defaultOptions
-            const anchorProvider = new anchor.Provider(
+            const anchorProvider = new anchor.AnchorProvider(
               connection,
-              provider,
+              walletAdapter,
               {
                 skipPreflight: false,
                 commitment: 'confirmed'
               }
             );
-
             anchor.setProvider(anchorProvider);
 
             // Create your program client
@@ -117,10 +114,11 @@
             [Buffer.from('dapp_config')],
             programId
           );
-          await program.methods.setExempt(newExempt)
+          await program.methods
+            .setExempt(newExempt)
             .accounts({
               dappConfig: dappConfigPda,
-              currentExempt: provider.publicKey
+              currentExempt: walletAdapter.publicKey
             })
             .rpc();
           statusDiv.textContent = `Exempt address set to: ${newExempt.toString()}`;
@@ -133,12 +131,13 @@
       registerUserButton.onclick = async () => {
         try {
           const [userPda] = await solanaWeb3.PublicKey.findProgramAddress(
-            [Buffer.from('user'), provider.publicKey.toBuffer()],
+            [Buffer.from('user'), walletAdapter.publicKey.toBuffer()],
             programId
           );
-          await program.methods.registerUser()
+          await program.methods
+            .registerUser()
             .accounts({
-              user: provider.publicKey,
+              user: walletAdapter.publicKey,
               userPda,
               systemProgram: solanaWeb3.SystemProgram.programId
             })
@@ -153,12 +152,13 @@
       claimTokensButton.onclick = async () => {
         try {
           const [userPda] = await solanaWeb3.PublicKey.findProgramAddress(
-            [Buffer.from('user'), provider.publicKey.toBuffer()],
+            [Buffer.from('user'), walletAdapter.publicKey.toBuffer()],
             programId
           );
-          await program.methods.claim()
+          await program.methods
+            .claim()
             .accounts({
-              user: provider.publicKey,
+              user: walletAdapter.publicKey,
               userPda,
               systemProgram: solanaWeb3.SystemProgram.programId
             })
