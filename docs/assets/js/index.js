@@ -1,7 +1,5 @@
-import * as web3 from '@solana/web3.js';
+export * from '@solana/web3.js';
 
-// Re-export everything so the resulting bundle exposes the web3.js API.
-export default web3;
 
 export async function getPhantom() {
   try {
