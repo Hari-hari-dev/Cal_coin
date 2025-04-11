@@ -5,6 +5,13 @@
   <meta http-equiv="Content-Security-Policy" content="script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net;">
   <title>Solana DApp (Anchor v0.31.0)</title>
   <!-- Load Solana Web3.js -->
+
+  <script src="https://cdn.jsdelivr.net/npm/buffer@6.0.3/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/buffer@6.0.3/index.min.js"></script>
+  <script>
+    // This attaches the Buffer object to window
+    window.Buffer = window.buffer.Buffer;
+  </script>
   <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
 
   <!-- Load your UMD bundle (which includes Anchor v0.31.0) -->
