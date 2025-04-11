@@ -13,7 +13,11 @@ export default {
     },
     plugins: [
         commonjs(),
-        nodePolyfills({ include: ['buffer'] }),
+        nodePolyfills(),
+        resolve({
+          browser: true,
+          preferBuiltins: false
+        }),
         resolve({ browser: true }),
         typescript({ target: "es2019" }),
         json()
