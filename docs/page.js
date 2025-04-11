@@ -11,9 +11,9 @@ async function findAssociatedTokenAddress(walletAddress, tokenMintAddress) {
   const tokenProgramId = new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
   const [ata] = await solanaWeb3.PublicKey.findProgramAddress(
     [
-      walletAddress.toBytes(),        // using toBytes() instead of toBuffer()
-      tokenProgramId.toBytes(),         // using toBytes() instead of toBuffer()
-      tokenMintAddress.toBytes(),       // using toBytes() instead of toBuffer()
+      walletAddress.toBuffer(),        // using toBuffer() instead of toBytes()
+      tokenProgramId.toBuffer(),
+      tokenMintAddress.toBuffer(),
     ],
     associatedTokenProgramId
   );
@@ -37,9 +37,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Solana program ID
   const programId = new solanaWeb3.PublicKey('BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex');
 
-  // Derive the global dapp_config PDA using TextEncoder.
+  // Derive the global dapp_config PDA using Buffer.
   const [dappConfigPda] = await solanaWeb3.PublicKey.findProgramAddress(
-    [new TextEncoder().encode('dapp_config')],
+    [Buffer.from('dapp_config', 'utf8')],
     programId
   );
 
@@ -108,7 +108,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   registerUserButton.onclick = async () => {
     try {
       const [userPda] = await solanaWeb3.PublicKey.findProgramAddress(
-        [new TextEncoder().encode('user'), walletAdapter.publicKey.toBytes()],
+        [Buffer.from('user', 'utf8'), walletAdapter.publicKey.toBuffer()],
         programId
       );
       await program.methods
@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   claimTokensButton.onclick = async () => {
     try {
       const [userPda] = await solanaWeb3.PublicKey.findProgramAddress(
-        [new TextEncoder().encode('user'), walletAdapter.publicKey.toBytes()],
+        [Buffer.from('user', 'utf8'), walletAdapter.publicKey.toBuffer()],
         programId
       );
       // Fetch the dapp_config account to get the token mint.
@@ -141,7 +141,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       // Derive mint authority PDA using the seed "mint_authority".
       const [mintAuthorityPda] = await solanaWeb3.PublicKey.findProgramAddress(
-        [new TextEncoder().encode('mint_authority')],
+        [Buffer.from('mint_authority', 'utf8')],
         programId
       );
 
