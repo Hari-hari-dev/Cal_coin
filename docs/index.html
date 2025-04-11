@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Solana DApp</title>
+  <title>Solana DApp (Anchor v0.24.2)</title>
 
   <!-- Load Solana Web3.js -->
   <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
 
-  <!-- Load the UMD bundle (which includes anchor and the Buffer polyfill) -->
+  <!-- Load your UMD bundle (which should include Anchor v0.24.2) -->
   <script src="./bundle.js"></script>
 
   <style>
@@ -18,7 +18,7 @@
   </style>
 </head>
 <body>
-  <h1>Solana DApp</h1>
+  <h1>Solana DApp (Anchor v0.24.2)</h1>
 
   <!-- Wallet Connection -->
   <button id="connectWallet">Connect Wallet</button>
@@ -41,7 +41,7 @@
   <div id="status"></div>
 
   <script>
-    // Ensure anchor is accessible in this script by assigning from window.
+    // For older Anchor, make sure it’s on window, then alias it locally.
     window.anchor = window.anchor || {};
     const anchor = window.anchor;
 
@@ -71,14 +71,18 @@
             walletAddressDiv.textContent = `Connected: ${provider.publicKey.toString()}`;
             statusDiv.textContent = 'Wallet connected successfully.';
 
-            // Initialize Anchor provider and program
+            // Initialize Anchor (v0.24) provider and program
             const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('devnet'), 'confirmed');
-            const anchorProvider = new anchor.AnchorProvider(
-              connection, 
-              provider, 
-              anchor.AnchorProvider.defaultOptions()
+            // Use anchor.Provider
+            const anchorProvider = new anchor.Provider(
+              connection,
+              provider,
+              anchor.Provider.defaultOptions() // or your own { skipPreflight: false, commitment: 'confirmed' }
             );
+
             anchor.setProvider(anchorProvider);
+
+            // Create your program client
             program = new anchor.Program(idl, programId, anchorProvider);
 
             // Enable buttons after connection
