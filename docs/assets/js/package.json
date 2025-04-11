@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@project-serum/anchor": "0.31.0"
+    "@coral-xyz/anchor": "0.31.0",
+    "borsh": "^2.0.0",
+    "buffer": "^6.0.3"
   },
   "scripts": {
     "build": "sh sync-idl.sh; rollup --config"
@@ -27,6 +29,7 @@
     ]
   },
   "devDependencies": {
+    "@rollup/plugin-alias": "^5.1.1",
     "@rollup/plugin-commonjs": "^21.0.1",
     "@rollup/plugin-json": "^4.1.0",
     "@rollup/plugin-node-resolve": "^13.1.3",
