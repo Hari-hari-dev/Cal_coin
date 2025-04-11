@@ -8,9 +8,8 @@ export default {
     output: {
         file: 'bundle.js',
         format: 'umd',         // UMD for global usage in browsers
-        name: 'anchor',        // Global variable name (change if desired)
+        name: 'solanaWeb3',    // Global variable name changed from 'anchor' to 'solanaWeb3'
         exports: 'named',      // Use named exports to avoid default export wrappers
-        // If Rollup treats "buffer" as an external module, you can map it here:
         globals: {
             buffer: 'buffer'
         }
