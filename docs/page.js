@@ -1,16 +1,16 @@
-// Anchor is attached to window by bundle.js; alias it locally.
-
-// If the default export is nested (e.g. due to default export wrapping), use it:
+// We're assuming that your Rollup bundle exposes the full API on window.solanaWeb3.
+// If the bundle wraps the default export, ensure that your entry file re‑exports all named exports.
+const solanaWeb3 = window.solanaWeb3; 
 
 // Create a TextEncoder to convert seed strings to Uint8Array.
 const textEncoder = new TextEncoder();
 
 /**
  * Helper function to derive the Associated Token Account (ATA) address.
- * Updated for web3.js v2.0.0 using .toBytes() and findProgramAddressSync.
+ * Uses web3.js v2.0.0 APIs (.toBytes() and findProgramAddressSync).
  */
 async function findAssociatedTokenAddress(walletAddress, tokenMintAddress) {
-  // Associated token program ID for standard ATA derivation.
+  // Associated token program ID (standard for ATA derivation).
   const associatedTokenProgramId = new solanaWeb3.PublicKey(
     'ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq'
   );
@@ -21,7 +21,7 @@ async function findAssociatedTokenAddress(walletAddress, tokenMintAddress) {
   // Derive the ATA using Uint8Array seeds.
   const [ata] = solanaWeb3.PublicKey.findProgramAddressSync(
     [
-      walletAddress.toBytes(), // use .toBytes() instead of .toBuffer()
+      walletAddress.toBytes(), // using .toBytes() now
       tokenProgramId.toBytes(),
       tokenMintAddress.toBytes()
     ],
@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let program = null;
 
   // Load the IDL.
-  // Ensure that your idl.json file includes a metadata.address field.
+  // Make sure your idl.json file includes the correct metadata.address field.
   const idl = await fetch('./idl.json').then(res => res.json());
 
   // Use the program address from the IDL metadata.
@@ -68,7 +68,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           solanaWeb3.clusterApiUrl('devnet'),
           'confirmed'
         );
-        // Create an AnchorProvider using the Devnet connection and Phantom wallet.
+        
+        // If you are using Anchor (for example, via @project-serum/anchor),
+        // create an AnchorProvider and Program as follows:
         const anchorProvider = new solanaWeb3.AnchorProvider(
           connection,
           walletAdapter,
@@ -77,13 +79,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             commitment: 'confirmed'
           }
         );
-        // Set the provider on the global Anchor object.
-        anchor.setProvider(anchorProvider);
+        // Optionally, if you have a global Anchor object from another bundle,
+        // you can set its provider:
+        if(window.anchor && window.anchor.setProvider) {
+          window.anchor.setProvider(anchorProvider);
+        }
 
         // Create your program client using the loaded IDL.
+        // (This is an Anchor construct; if you’re not using Anchor,
+        // you’ll have to build raw transactions using solana-web3 only.)
         program = new solanaWeb3.Program(idl, programId, anchorProvider);
 
-        // Enable buttons after connection.
+        // Enable additional buttons after wallet is connected.
         setExemptButton.disabled = false;
         registerUserButton.disabled = false;
         claimTokensButton.disabled = false;
@@ -158,7 +165,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         programId
       );
 
-      // Derive the user's Associated Token Account (ATA) using their wallet and the fetched token mint.
+      // Derive the user's Associated Token Account (ATA).
       const userAta = await findAssociatedTokenAddress(walletAdapter.publicKey, tokenMint);
 
       await program.methods
