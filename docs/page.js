@@ -11,15 +11,15 @@ const textEncoder = new TextEncoder();
  */
 async function findAssociatedTokenAddress(walletAddress, tokenMintAddress) {
   // Associated token program ID (standard for ATA derivation).
-  const associatedTokenProgramId = new solanaWeb3.PublicKey(
+  const associatedTokenProgramId = new solanaWeb3.getAddressFromPublicKey(
     'ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq'
   );
   // Provided Token Program ID.
-  const tokenProgramId = new solanaWeb3.PublicKey(
+  const tokenProgramId = new solanaWeb3.getAddressFromPublicKey(
     "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
   );
   // Derive the ATA using Uint8Array seeds.
-  const [ata] = solanaWeb3.PublicKey.findProgramAddressSync(
+  const [ata] = solanaWeb3.getAddressFromPublicKey.findProgramAddressSync(
     [
       walletAddress.toBytes(), // using .toBytes() now
       tokenProgramId.toBytes(),
@@ -46,10 +46,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const idl = await fetch('./idl.json').then(res => res.json());
 
   // Use the program address from the IDL metadata.
-  const programId = new solanaWeb3.PublicKey("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
+  const programId = new solanaWeb3.getAddressFromPublicKey("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
 
   // Derive the global dapp_config PDA using a string seed encoded to Uint8Array.
-  const [dappConfigPda] = solanaWeb3.PublicKey.findProgramAddressSync(
+  const [dappConfigPda] = solanaWeb3.getAddressFromPublicKey.findProgramAddressSync(
     [textEncoder.encode('dapp_config')],
     programId
   );
@@ -110,7 +110,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     try {
-      const newExempt = new solanaWeb3.PublicKey(exemptAddressInput);
+      const newExempt = new solanaWeb3.getAddressFromPublicKey(exemptAddressInput);
       await program.methods
         .setExempt(newExempt)
         .accounts({
@@ -127,7 +127,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Register User.
   registerUserButton.onclick = async () => {
     try {
-      const [userPda] = solanaWeb3.PublicKey.findProgramAddressSync(
+      const [userPda] = solanaWeb3.getAddressFromPublicKey.findProgramAddressSync(
         [textEncoder.encode('user'), walletAdapter.publicKey.toBytes()],
         programId
       );
@@ -151,16 +151,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Claim Tokens.
   claimTokensButton.onclick = async () => {
     try {
-      const [userPda] = solanaWeb3.PublicKey.findProgramAddressSync(
+      const [userPda] = solanaWeb3.getAddressFromPublicKey.findProgramAddressSync(
         [textEncoder.encode('user'), walletAdapter.publicKey.toBytes()],
         programId
       );
       // Fetch the dapp_config account to get the token mint.
       const dappConfigAccount = await program.account.dappConfig.fetch(dappConfigPda);
-      const tokenMint = new solanaWeb3.PublicKey(dappConfigAccount.token_mint.toString());
+      const tokenMint = new solanaWeb3.getAddressFromPublicKey(dappConfigAccount.token_mint.toString());
 
       // Derive mint authority PDA using seed "mint_authority".
-      const [mintAuthorityPda] = solanaWeb3.PublicKey.findProgramAddressSync(
+      const [mintAuthorityPda] = solanaWeb3.getAddressFromPublicKey.findProgramAddressSync(
         [textEncoder.encode('mint_authority')],
         programId
       );
@@ -178,8 +178,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           tokenMint: tokenMint,
           mintAuthority: mintAuthorityPda,
           userAta: userAta,
-          tokenProgram: new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"),
-          associatedTokenProgram: new solanaWeb3.PublicKey("ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq"),
+          tokenProgram: new solanaWeb3.getAddressFromPublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"),
+          associatedTokenProgram: new solanaWeb3.getAddressFromPublicKey("ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq"),
           systemProgram: solanaWeb3.SystemProgram.programId,
           rent: solanaWeb3.SYSVAR_RENT_PUBKEY,
         })
