@@ -1,27 +1,29 @@
 // Anchor is attached to window by bundle.js; alias it locally.
 window.anchor = window.anchor || {};
 const anchor = window.anchor;
+// If the default export is nested (e.g. due to default export wrapping), use it:
+const solanaWeb3 = anchor.default || anchor;
 
 // Create a TextEncoder to convert seed strings to Uint8Array.
 const textEncoder = new TextEncoder();
 
 /**
  * Helper function to derive the Associated Token Account (ATA) address.
- * Updated for web3.js v2.0.0, using .toBytes() and findProgramAddressSync.
+ * Updated for web3.js v2.0.0 using .toBytes() and findProgramAddressSync.
  */
 async function findAssociatedTokenAddress(walletAddress, tokenMintAddress) {
   // Associated token program ID for standard ATA derivation.
-  const associatedTokenProgramId = new anchor.PublicKey(
+  const associatedTokenProgramId = new solanaWeb3.PublicKey(
     'ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq'
   );
   // Provided Token Program ID.
-  const tokenProgramId = new anchor.PublicKey(
+  const tokenProgramId = new solanaWeb3.PublicKey(
     "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
   );
   // Derive the ATA using Uint8Array seeds.
-  const [ata] = anchor.PublicKey.findProgramAddressSync(
+  const [ata] = solanaWeb3.PublicKey.findProgramAddressSync(
     [
-      walletAddress.toBytes(), // using .toBytes() instead of .toBuffer()
+      walletAddress.toBytes(), // use .toBytes() instead of .toBuffer()
       tokenProgramId.toBytes(),
       tokenMintAddress.toBytes()
     ],
@@ -42,14 +44,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   let program = null;
 
   // Load the IDL.
-  // Ensure that your idl.json now includes a metadata.address field.
+  // Ensure that your idl.json file includes a metadata.address field.
   const idl = await fetch('./idl.json').then(res => res.json());
 
-  // Get the program ID from the idl metadata.
-  const programId = new anchor.PublicKey("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
+  // Use the program address from the IDL metadata.
+  const programId = new solanaWeb3.PublicKey("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
 
   // Derive the global dapp_config PDA using a string seed encoded to Uint8Array.
-  const [dappConfigPda] = anchor.PublicKey.findProgramAddressSync(
+  const [dappConfigPda] = solanaWeb3.PublicKey.findProgramAddressSync(
     [textEncoder.encode('dapp_config')],
     programId
   );
@@ -64,11 +66,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         statusDiv.textContent = 'Wallet connected successfully.';
 
         // Explicitly connect to Devnet.
-        const connection = new anchor.Connection(
-          anchor.clusterApiUrl('devnet'),
+        const connection = new solanaWeb3.Connection(
+          solanaWeb3.clusterApiUrl('devnet'),
           'confirmed'
         );
-        const anchorProvider = new anchor.AnchorProvider(
+        // Create an AnchorProvider using the Devnet connection and Phantom wallet.
+        const anchorProvider = new solanaWeb3.AnchorProvider(
           connection,
           walletAdapter,
           {
@@ -80,7 +83,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         anchor.setProvider(anchorProvider);
 
         // Create your program client using the loaded IDL.
-        program = new anchor.Program(idl, programId, anchorProvider);
+        program = new solanaWeb3.Program(idl, programId, anchorProvider);
 
         // Enable buttons after connection.
         setExemptButton.disabled = false;
@@ -102,7 +105,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     try {
-      const newExempt = new anchor.PublicKey(exemptAddressInput);
+      const newExempt = new solanaWeb3.PublicKey(exemptAddressInput);
       await program.methods
         .setExempt(newExempt)
         .accounts({
@@ -119,7 +122,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Register User.
   registerUserButton.onclick = async () => {
     try {
-      const [userPda] = anchor.PublicKey.findProgramAddressSync(
+      const [userPda] = solanaWeb3.PublicKey.findProgramAddressSync(
         [textEncoder.encode('user'), walletAdapter.publicKey.toBytes()],
         programId
       );
@@ -130,8 +133,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           user: walletAdapter.publicKey,
           gatewayToken: walletAdapter.publicKey, // using user's address as gateway token
           userPda: userPda,
-          systemProgram: anchor.SystemProgram.programId,
-          rent: anchor.SYSVAR_RENT_PUBKEY,
+          systemProgram: solanaWeb3.SystemProgram.programId,
+          rent: solanaWeb3.SYSVAR_RENT_PUBKEY,
         })
         .rpc();
       statusDiv.textContent = 'User registered successfully.';
@@ -143,16 +146,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Claim Tokens.
   claimTokensButton.onclick = async () => {
     try {
-      const [userPda] = anchor.PublicKey.findProgramAddressSync(
+      const [userPda] = solanaWeb3.PublicKey.findProgramAddressSync(
         [textEncoder.encode('user'), walletAdapter.publicKey.toBytes()],
         programId
       );
       // Fetch the dapp_config account to get the token mint.
       const dappConfigAccount = await program.account.dappConfig.fetch(dappConfigPda);
-      const tokenMint = new anchor.PublicKey(dappConfigAccount.token_mint.toString());
+      const tokenMint = new solanaWeb3.PublicKey(dappConfigAccount.token_mint.toString());
 
       // Derive mint authority PDA using seed "mint_authority".
-      const [mintAuthorityPda] = anchor.PublicKey.findProgramAddressSync(
+      const [mintAuthorityPda] = solanaWeb3.PublicKey.findProgramAddressSync(
         [textEncoder.encode('mint_authority')],
         programId
       );
@@ -170,10 +173,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           tokenMint: tokenMint,
           mintAuthority: mintAuthorityPda,
           userAta: userAta,
-          tokenProgram: new anchor.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"),
-          associatedTokenProgram: new anchor.PublicKey("ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq"),
-          systemProgram: anchor.SystemProgram.programId,
-          rent: anchor.SYSVAR_RENT_PUBKEY,
+          tokenProgram: new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"),
+          associatedTokenProgram: new solanaWeb3.PublicKey("ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq"),
+          systemProgram: solanaWeb3.SystemProgram.programId,
+          rent: solanaWeb3.SYSVAR_RENT_PUBKEY,
         })
         .rpc();
       statusDiv.textContent = 'Tokens claimed successfully.';
