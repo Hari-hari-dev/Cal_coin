@@ -91,11 +91,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         [new TextEncoder().encode('user'), walletAdapter.publicKey.toBytes()],
         programId
       );
+      const [dappConfigPda] = await solanaWeb3.PublicKey.findProgramAddress(
+        [new TextEncoder().encode('dapp_config')],
+        programId
+      );
       await program.methods
         .registerUser()
         .accounts({
           user: walletAdapter.publicKey,
           userPda,
+          dappConfig: dappConfigPda,
           systemProgram: solanaWeb3.SystemProgram.programId
         })
         .rpc();
@@ -112,11 +117,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         [new TextEncoder().encode('user'), walletAdapter.publicKey.toBytes()],
         programId
       );
+      const [dappConfigPda] = await solanaWeb3.PublicKey.findProgramAddress(
+        [new TextEncoder().encode('dapp_config')],
+        programId
+      );
       await program.methods
         .claim()
         .accounts({
           user: walletAdapter.publicKey,
           userPda,
+          dappConfig: dappConfigPda,
           systemProgram: solanaWeb3.SystemProgram.programId
         })
         .rpc();
