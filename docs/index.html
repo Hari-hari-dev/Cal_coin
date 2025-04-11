@@ -11,7 +11,11 @@
 
   <!-- Load your UMD bundle (which should include Anchor v0.31.0) -->
   <script src="./bundle.js"></script>
-
+  <script src="https://unpkg.com/buffer@6.0.3/index.js"></script>
+  <script>
+    // Expose Buffer globally
+    window.Buffer = window.buffer.Buffer;
+  </script>
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; }
     button { margin: 5px; padding: 10px; }
