@@ -41,7 +41,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let walletAdapter = null;
   let program = null;
 
-  // Load the IDL. Make sure that idl.json now includes a metadata.address field.
+  // Load the IDL.
+  // Ensure that your idl.json now includes a metadata.address field.
   const idl = await fetch('./idl.json').then(res => res.json());
 
   // Get the program ID from the idl metadata.
@@ -62,7 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         walletAddressDiv.textContent = `Connected: ${walletAdapter.publicKey.toString()}`;
         statusDiv.textContent = 'Wallet connected successfully.';
 
-        // Initialize connection and Anchor provider.
+        // Explicitly connect to Devnet.
         const connection = new anchor.Connection(
           anchor.clusterApiUrl('devnet'),
           'confirmed'
