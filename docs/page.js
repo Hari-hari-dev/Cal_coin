@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const programId = new solanaWeb3.address("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
 
   // Derive the global dapp_config PDA using a string seed encoded to Uint8Array.
-  const [dappConfigPda] = solanaWeb3.address.findProgramAddressSync(
+  const [dappConfigPda] = solanaWeb3.getProgramDerivedAddress(
     [textEncoder.encode('dapp_config')],
     programId
   );
