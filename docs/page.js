@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const programId = new solanaWeb3.address("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
 
   // Derive the global dapp_config PDA using a string seed encoded to Uint8Array.
-  const seeds = [new TextEncoder().encode('dapp_config')];
+  const seeds = new Uint8Array([100, 97, 112, 112, 95, 99, 111, 110, 102, 105, 103]);
   const [pda] = solanaWeb3.getProgramDerivedAddress(seeds, programId);
 
   // Connect to Phantom Wallet.
