@@ -60,10 +60,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const provider = new window.anchor.AnchorProvider(
           connection,
           walletAdapter,
-          {
-            skipPreflight: false,
-            commitment: 'confirmed',
-          }
+          window.anchor.AnchorProvider.defaultOptions
         );
 
         if (window.anchor && window.anchor.setProvider) {
