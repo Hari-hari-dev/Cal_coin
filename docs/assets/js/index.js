@@ -1,7 +1,9 @@
 import * as anchor from '@coral-xyz/anchor';
 
 // If you want to expose everything as a single object, simply re‑export the default.
-export default anchor;export async function getPhantom() {
+export default anchor;
+
+export async function getPhantom() {
   try {
       const connection = await window.solana.connect();
       const publicKey = connection.publicKey;
