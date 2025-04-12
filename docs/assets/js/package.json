@@ -4,6 +4,8 @@
   "private": true,
   "dependencies": {
     "@coral-xyz/anchor": "0.31.0",
+    "@solana/compat": "^2.1.0",
+    "@solana/kit": "^2.1.0",
     "@solana/web3.js": "^2.0.0",
     "borsh": "^2.0.0",
     "rollup-plugin-polyfill-node": "^0.13.0"
