@@ -1,5 +1,5 @@
 // We're assuming that your Rollup bundle exposes the full API on window.solanaWeb3.
-const solanaWeb3 = window.solanaWeb3;
+//const solanaWeb3 = window.solanaWeb3;
 
 /**
  * Helper function to derive the Associated Token Account (ATA) address.
