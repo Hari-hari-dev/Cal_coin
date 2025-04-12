@@ -1,12 +1,7 @@
-export * from '@solana/web3.js';
-// Import the compatibility shim first to ensure legacy API compatibility.
-import '@solana/compat';
+import * as anchor from '@coral-xyz/anchor';
 
-// Then import other modules from your kit or other dependencies.
-
-// You can export these modules or use them directly in your application.
-export { PublicKey, Connection, clusterApiUrl, AnchorProvider, Program } from '@solana/compat';
-export async function getPhantom() {
+// If you want to expose everything as a single object, simply re‑export the default.
+export default anchor;export async function getPhantom() {
   try {
       const connection = await window.solana.connect();
       const publicKey = connection.publicKey;
