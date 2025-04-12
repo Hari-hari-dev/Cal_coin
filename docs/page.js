@@ -1,29 +1,21 @@
 // We're assuming that your Rollup bundle exposes the full API on window.solanaWeb3.
-// If the bundle wraps the default export, ensure that your entry file re‑exports all named exports.
-const solanaWeb3 = window.solanaWeb3; 
-
-// Create a TextEncoder to convert seed strings to Uint8Array.
-const textEncoder = new TextEncoder();
+const solanaWeb3 = window.solanaWeb3;
 
 /**
  * Helper function to derive the Associated Token Account (ATA) address.
- * Uses web3.js v2.0.0 APIs (.toBytes() and findProgramAddressSync).
  */
 async function findAssociatedTokenAddress(walletAddress, tokenMintAddress) {
-  // Associated token program ID (standard for ATA derivation).
-  const associatedTokenProgramId = new solanaWeb3.address(
+  const associatedTokenProgramId = new solanaWeb3.PublicKey(
     'ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq'
   );
-  // Provided Token Program ID.
-  const tokenProgramId = new solanaWeb3.address(
-    "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+  const tokenProgramId = new solanaWeb3.PublicKey(
+    'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'
   );
-  // Derive the ATA using Uint8Array seeds.
-  const [ata] = solanaWeb3.address.findProgramAddressSync(
+  const [ata] = solanaWeb3.PublicKey.findProgramAddressSync(
     [
-      walletAddress.toBytes(), // using .toBytes() now
-      tokenProgramId.toBytes(),
-      tokenMintAddress.toBytes()
+      walletAddress.toBuffer(),
+      tokenProgramId.toBuffer(),
+      tokenMintAddress.toBuffer(),
     ],
     associatedTokenProgramId
   );
@@ -41,18 +33,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   let walletAdapter = null;
   let program = null;
 
-  // Load the IDL.
-  // Make sure your idl.json file includes the correct metadata.address field.
-  const idl = await fetch('./idl.json').then(res => res.json());
+  const idl = await fetch('./idl.json').then((res) => res.json());
 
-  // Use the program address from the IDL metadata.
-  const programId = new solanaWeb3.address("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
+  const programId = new solanaWeb3.PublicKey(
+    'BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex'
+  );
 
-  // Derive the global dapp_config PDA using a string seed encoded to Uint8Array.
-  const seeds = new Uint8Array([100, 97, 112, 112, 95, 99, 111, 110, 102, 105, 103]);
-  const [pda] = solanaWeb3.getProgramDerivedAddress(seeds, programId);
+  const [dappConfigPda] = solanaWeb3.PublicKey.findProgramAddressSync(
+    [Buffer.from('dapp_config')],
+    programId
+  );
 
-  // Connect to Phantom Wallet.
   connectWalletButton.onclick = async () => {
     if (window.solana && window.solana.isPhantom) {
       try {
@@ -61,34 +52,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         walletAddressDiv.textContent = `Connected: ${walletAdapter.publicKey.toString()}`;
         statusDiv.textContent = 'Wallet connected successfully.';
 
-        // Explicitly connect to Devnet.
         const connection = new solanaWeb3.Connection(
           solanaWeb3.clusterApiUrl('devnet'),
           'confirmed'
         );
-        
-        // If you are using Anchor (for example, via @project-serum/anchor),
-        // create an AnchorProvider and Program as follows:
-        const anchorProvider = new solanaWeb3.AnchorProvider(
+
+        const provider = new window.anchor.AnchorProvider(
           connection,
           walletAdapter,
           {
             skipPreflight: false,
-            commitment: 'confirmed'
+            commitment: 'confirmed',
           }
         );
-        // Optionally, if you have a global Anchor object from another bundle,
-        // you can set its provider:
-        if(window.anchor && window.anchor.setProvider) {
-          window.anchor.setProvider(anchorProvider);
+
+        if (window.anchor && window.anchor.setProvider) {
+          window.anchor.setProvider(provider);
         }
 
-        // Create your program client using the loaded IDL.
-        // (This is an Anchor construct; if you’re not using Anchor,
-        // you’ll have to build raw transactions using solana-web3 only.)
-        program = new solanaWeb3.Program(idl, programId, anchorProvider);
+        program = new window.anchor.Program(idl, programId, provider);
 
-        // Enable additional buttons after wallet is connected.
         setExemptButton.disabled = false;
         registerUserButton.disabled = false;
         claimTokensButton.disabled = false;
@@ -100,7 +83,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
-  // Set Exempt Address.
   setExemptButton.onclick = async () => {
     const exemptAddressInput = document.getElementById('exemptAddress').value.trim();
     if (!exemptAddressInput) {
@@ -108,12 +90,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     try {
-      const newExempt = new solanaWeb3.address(exemptAddressInput);
+      const newExempt = new solanaWeb3.PublicKey(exemptAddressInput);
       await program.methods
         .setExempt(newExempt)
         .accounts({
           dappConfig: dappConfigPda,
-          currentExempt: walletAdapter.publicKey
+          currentExempt: walletAdapter.publicKey,
         })
         .rpc();
       statusDiv.textContent = `Exempt address set to: ${newExempt.toString()}`;
@@ -122,11 +104,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
-  // Register User.
   registerUserButton.onclick = async () => {
     try {
-      const [userPda] = solanaWeb3.address.findProgramAddressSync(
-        [textEncoder.encode('user'), walletAdapter.publicKey.toBytes()],
+      const [userPda] = solanaWeb3.PublicKey.findProgramAddressSync(
+        [Buffer.from('user'), walletAdapter.publicKey.toBuffer()],
         programId
       );
       await program.methods
@@ -134,8 +115,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         .accounts({
           dappConfig: dappConfigPda,
           user: walletAdapter.publicKey,
-          gatewayToken: walletAdapter.publicKey, // using user's address as gateway token
-          userPda: userPda,
+          gatewayToken: walletAdapter.publicKey,
+          userPda,
           systemProgram: solanaWeb3.SystemProgram.programId,
           rent: solanaWeb3.SYSVAR_RENT_PUBKEY,
         })
@@ -146,24 +127,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
-  // Claim Tokens.
   claimTokensButton.onclick = async () => {
     try {
-      const [userPda] = solanaWeb3.address.findProgramAddressSync(
-        [textEncoder.encode('user'), walletAdapter.publicKey.toBytes()],
+      const [userPda] = solanaWeb3.PublicKey.findProgramAddressSync(
+        [Buffer.from('user'), walletAdapter.publicKey.toBuffer()],
         programId
       );
-      // Fetch the dapp_config account to get the token mint.
+
       const dappConfigAccount = await program.account.dappConfig.fetch(dappConfigPda);
-      const tokenMint = new solanaWeb3.address(dappConfigAccount.token_mint.toString());
+      const tokenMint = new solanaWeb3.PublicKey(dappConfigAccount.token_mint);
 
-      // Derive mint authority PDA using seed "mint_authority".
-      const [mintAuthorityPda] = solanaWeb3.address.findProgramAddressSync(
-        [textEncoder.encode('mint_authority')],
+      const [mintAuthorityPda] = solanaWeb3.PublicKey.findProgramAddressSync(
+        [Buffer.from('mint_authority')],
         programId
       );
 
-      // Derive the user's Associated Token Account (ATA).
       const userAta = await findAssociatedTokenAddress(walletAdapter.publicKey, tokenMint);
 
       await program.methods
@@ -171,13 +149,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         .accounts({
           dappConfig: dappConfigPda,
           user: walletAdapter.publicKey,
-          gatewayToken: walletAdapter.publicKey, // using user's address as gateway token
-          userPda: userPda,
-          tokenMint: tokenMint,
+          gatewayToken: walletAdapter.publicKey,
+          userPda,
+          tokenMint,
           mintAuthority: mintAuthorityPda,
-          userAta: userAta,
-          tokenProgram: new solanaWeb3.address("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"),
-          associatedTokenProgram: new solanaWeb3.address("ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq"),
+          userAta,
+          tokenProgram: new solanaWeb3.PublicKey(
+            'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'
+          ),
+          associatedTokenProgram: new solanaWeb3.PublicKey(
+            'ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq'
+          ),
           systemProgram: solanaWeb3.SystemProgram.programId,
           rent: solanaWeb3.SYSVAR_RENT_PUBKEY,
         })
