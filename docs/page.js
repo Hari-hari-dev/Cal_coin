@@ -13,9 +13,9 @@ async function findAssociatedTokenAddress(walletAddress, tokenMintAddress) {
   );
   const [ata] = solanaWeb3.PublicKey.findProgramAddressSync(
     [
-      walletAddress.toBuffer(),
-      tokenProgramId.toBuffer(),
-      tokenMintAddress.toBuffer(),
+      walletAddress.toBytes(),
+      tokenProgramId.toBytes(),
+      tokenMintAddress.toBytes(),
     ],
     associatedTokenProgramId
   );
@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   );
 
   const [dappConfigPda] = solanaWeb3.PublicKey.findProgramAddressSync(
-    [Buffer.from('dapp_config')],
+    [Uint8Array.from(new TextEncoder().encode('dapp_config'))],
     programId
   );
 
@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   registerUserButton.onclick = async () => {
     try {
       const [userPda] = solanaWeb3.PublicKey.findProgramAddressSync(
-        [Buffer.from('user'), walletAdapter.publicKey.toBuffer()],
+        [Uint8Array.from(new TextEncoder().encode('user')), walletAdapter.publicKey.toBytes()],
         programId
       );
       await program.methods
@@ -130,7 +130,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   claimTokensButton.onclick = async () => {
     try {
       const [userPda] = solanaWeb3.PublicKey.findProgramAddressSync(
-        [Buffer.from('user'), walletAdapter.publicKey.toBuffer()],
+        [Uint8Array.from(new TextEncoder().encode('user')), walletAdapter.publicKey.toBytes()],
         programId
       );
 
@@ -138,7 +138,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const tokenMint = new solanaWeb3.PublicKey(dappConfigAccount.token_mint);
 
       const [mintAuthorityPda] = solanaWeb3.PublicKey.findProgramAddressSync(
-        [Buffer.from('mint_authority')],
+        [Uint8Array.from(new TextEncoder().encode('mint_authority'))],
         programId
       );
 
