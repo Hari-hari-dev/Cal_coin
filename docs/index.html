@@ -46,24 +46,24 @@
     const DISCRIMINATOR_INIT = new Uint8Array([0x7f, 0x66, 0x9d, 0xda, 0x92, 0xf1, 0xe6, 0x00]);
     
     // Helper: Convert a number to an 8-byte little-endian Uint8Array.
-    function u64ToBytes(num) {
-      const buffer = new ArrayBuffer(8);
-      new DataView(buffer).setBigUint64(0, BigInt(num), true);
-      return new Uint8Array(buffer);
-    }
+    // function u64ToBytes(num) {
+    //   const buffer = new ArrayBuffer(8);
+    //   new DataView(buffer).setBigUint64(0, BigInt(num), true);
+    //   return new Uint8Array(buffer);
+    // }
     
     // Helper: Derive the Associated Token Account (ATA) using known seeds.
-    function findAssociatedTokenAddress(walletAddress, tokenMintAddress) {
-      const [ata] = solanaWeb3.PublicKey.findProgramAddressSync(
-        [
-          walletAddress.toBytes(),
-          TOKEN_PROGRAM_ID.toBytes(),
-          tokenMintAddress.toBytes(),
-        ],
-        ASSOCIATED_TOKEN_PROGRAM_ID
-      );
-      return ata;
-    }
+    // function findAssociatedTokenAddress(walletAddress, tokenMintAddress) {
+    //   const [ata] = solanaWeb3.PublicKey.findProgramAddressSync(
+    //     [
+    //       walletAddress.toBytes(),
+    //       TOKEN_PROGRAM_ID.toBytes(),
+    //       tokenMintAddress.toBytes(),
+    //     ],
+    //     ASSOCIATED_TOKEN_PROGRAM_ID
+    //   );
+    //   return ata;
+    // }
     
     // --- GLOBAL VARIABLES ---
     let walletAdapter = null;
