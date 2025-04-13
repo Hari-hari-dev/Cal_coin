@@ -35,7 +35,7 @@
     // --- CONSTANTS & HELPER FUNCTIONS ---
     
     // Your program's deployed Program ID.
-    const PROGRAM_ID = new solanaWeb3.PublicKey("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
+    //const PROGRAM_ID = new solanaWeb3.PublicKey("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
     // Replace with your actual token mint address.
     //const TOKEN_MINT = new solanaWeb3.PublicKey("YourTokenMintAddressHere");
     const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
@@ -66,12 +66,12 @@
     }
     
     // --- GLOBAL VARIABLES ---
-    // let walletAdapter = null;
-    // let connection = null;
+    let walletAdapter = null;
+    let connection = null;
     
-    // // PDAs (computed after connection)
-    // let dappConfigPda = null;    // PDA from seed "dapp_config"
-    // let mintAuthorityPda = null; // PDA from seed "mint_authority"
+    // PDAs (computed after connection)
+    let dappConfigPda = null;    // PDA from seed "dapp_config"
+    let mintAuthorityPda = null; // PDA from seed "mint_authority"
     
     // --- UI ELEMENTS ---
     const btn = document.getElementById("connect");
