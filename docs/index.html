@@ -52,284 +52,285 @@
     <p id="claimStatus"></p>
     
     <script>
-      // --- CONSTANTS & HELPER FUNCTIONS ---
+      document.addEventListener('DOMContentLoaded', () => {
+        // --- CONSTANTS & HELPER FUNCTIONS ---
+        
+        // Program constants (replace with your actual addresses)
+        const PROGRAM_ID = new solanaWeb3.PublicKey("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
+        const TOKEN_MINT = new solanaWeb3.PublicKey("YourTokenMintAddressHere");
+        const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
+        const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq");
+        
+        // Discriminator values computed via Anchor conventions (replace with your computed values)
+        const DISCRIMINATOR_INIT = new Uint8Array([0x7f, 0x66, 0x9d, 0xda, 0x92, 0xf1, 0xe6, 0x00]);
+        const DISCRIMINATOR_SET_EXEMPT = new Uint8Array([0xf4, 0x49, 0x57, 0xbe, 0xa2, 0x7c, 0x96, 0x18]);
+        const DISCRIMINATOR_REGISTER_USER = new Uint8Array([0x02, 0xf1, 0x96, 0xdf, 0x63, 0xd6, 0x74, 0x61]);
+        const DISCRIMINATOR_CLAIM = new Uint8Array([0x3e, 0xc6, 0xd6, 0xc1, 0xd5, 0x9f, 0x6c, 0xd2]);
+        
+        // Helper: Derive the Associated Token Account (ATA) address.
+        async function findAssociatedTokenAddress(walletAddress, tokenMintAddress) {
+          const [ata] = solanaWeb3.PublicKey.findProgramAddressSync(
+            [
+              walletAddress.toBytes(),
+              TOKEN_PROGRAM_ID.toBytes(),
+              tokenMintAddress.toBytes(),
+            ],
+            ASSOCIATED_TOKEN_PROGRAM_ID
+          );
+          return ata;
+        }
+        
+        // Helper: Convert a number to an 8-byte little-endian Uint8Array.
+        function u64ToBytes(num) {
+          const buffer = new ArrayBuffer(8);
+          new DataView(buffer).setBigUint64(0, BigInt(num), true);
+          return new Uint8Array(buffer);
+        }
+        
+        // --- GLOBAL VARIABLES ---
+        let walletAdapter = null;
+        let connection = null;
+        
+        // PDAs (will be computed after wallet connect)
+        let dappConfigPda = null;    // Global config PDA (seed: "dapp_config")
+        let mintAuthorityPda = null; // Mint authority PDA (seed: "mint_authority")
+        let userPda = null;          // User PDA (seed: "user_pda", wallet)
+        
+        // --- UI ELEMENTS ---
+        const connectWalletButton = document.getElementById("connectWallet");
+        const walletAddressDiv = document.getElementById("walletAddress");
+        
+        const initDappButton = document.getElementById("initDapp");
+        const initAmountInput = document.getElementById("initAmount");
+        const dappStatusP = document.getElementById("dappStatus");
+        
+        const setExemptButton = document.getElementById("setExempt");
+        const exemptAddressInput = document.getElementById("exemptAddress");
+        const setExemptStatusP = document.getElementById("setExemptStatus");
+        
+        const registerUserButton = document.getElementById("registerUser");
+        const registerStatusP = document.getElementById("registerStatus");
+        
+        const claimTokensButton = document.getElementById("claimTokens");
+        const claimStatusP = document.getElementById("claimStatus");
+        
+        // --- CONNECT WALLET EVENT LISTENER ---
+        connectWalletButton.addEventListener("click", async () => {
+          console.log("Connect Wallet button clicked");
+          if (window.solana && window.solana.isPhantom) {
+            try {
+              // Use the default connect() call (without forcing a prompt)
+              await window.solana.connect();
+              walletAdapter = window.solana;
+              console.log("Wallet connected:", walletAdapter.publicKey.toString());
+              walletAddressDiv.textContent = `Connected: ${walletAdapter.publicKey.toString()}`;
       
-      // Program constants (replace with your actual addresses)
-      const PROGRAM_ID = new solanaWeb3.PublicKey("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
-      const TOKEN_MINT = new solanaWeb3.PublicKey("YourTokenMintAddressHere");
-      const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
-      const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq");
+              // Create a connection (using Devnet; ensure the page is served via HTTPS/localhost)
+              connection = new solanaWeb3.Connection(
+                solanaWeb3.clusterApiUrl("devnet"),
+                "confirmed"
+              );
       
-      // Discriminator values computed via Anchor conventions (replace with your computed values)
-      const DISCRIMINATOR_INIT = new Uint8Array([0x7f, 0x66, 0x9d, 0xda, 0x92, 0xf1, 0xe6, 0x00]);
-      const DISCRIMINATOR_SET_EXEMPT = new Uint8Array([0xf4, 0x49, 0x57, 0xbe, 0xa2, 0x7c, 0x96, 0x18]);
-      const DISCRIMINATOR_REGISTER_USER = new Uint8Array([0x02, 0xf1, 0x96, 0xdf, 0x63, 0xd6, 0x74, 0x61]);
-      const DISCRIMINATOR_CLAIM = new Uint8Array([0x3e, 0xc6, 0xd6, 0xc1, 0xd5, 0x9f, 0x6c, 0xd2]);
+              // Compute PDAs:
+              // Global config PDA seeded with "dapp_config"
+              const seedConfig = new TextEncoder().encode("dapp_config");
+              [dappConfigPda] = solanaWeb3.PublicKey.findProgramAddressSync(
+                [seedConfig],
+                PROGRAM_ID
+              );
+              // Mint authority PDA seeded with "mint_authority"
+              const seedMintAuth = new TextEncoder().encode("mint_authority");
+              [mintAuthorityPda] = solanaWeb3.PublicKey.findProgramAddressSync(
+                [seedMintAuth],
+                PROGRAM_ID
+              );
       
-      // Helper: Derive the Associated Token Account (ATA) address.
-      async function findAssociatedTokenAddress(walletAddress, tokenMintAddress) {
-        const [ata] = solanaWeb3.PublicKey.findProgramAddressSync(
-          [
-            walletAddress.toBytes(),
-            TOKEN_PROGRAM_ID.toBytes(),
-            tokenMintAddress.toBytes(),
-          ],
-          ASSOCIATED_TOKEN_PROGRAM_ID
-        );
-        return ata;
-      }
+              // Enable the other action buttons now that the wallet is connected.
+              initDappButton.disabled = false;
+              setExemptButton.disabled = false;
+              registerUserButton.disabled = false;
+              claimTokensButton.disabled = false;
       
-      // Helper: Convert a number to an 8-byte little-endian Uint8Array.
-      function u64ToBytes(num) {
-        const buffer = new ArrayBuffer(8);
-        new DataView(buffer).setBigUint64(0, BigInt(num), true);
-        return new Uint8Array(buffer);
-      }
-      
-      // --- GLOBAL VARIABLES ---
-      let walletAdapter = null;
-      let connection = null;
-      
-      // PDAs (will be computed after wallet connect)
-      let dappConfigPda = null;    // Global config PDA (seed: "dapp_config")
-      let mintAuthorityPda = null; // Mint authority PDA (seed: "mint_authority")
-      let userPda = null;          // User PDA (seed: "user_pda", wallet)
-      
-      // --- UI ELEMENTS ---
-      const connectWalletButton = document.getElementById("connectWallet");
-      const walletAddressDiv = document.getElementById("walletAddress");
-      
-      const initDappButton = document.getElementById("initDapp");
-      const initAmountInput = document.getElementById("initAmount");
-      const dappStatusP = document.getElementById("dappStatus");
-      
-      const setExemptButton = document.getElementById("setExempt");
-      const exemptAddressInput = document.getElementById("exemptAddress");
-      const setExemptStatusP = document.getElementById("setExemptStatus");
-      
-      const registerUserButton = document.getElementById("registerUser");
-      const registerStatusP = document.getElementById("registerStatus");
-      
-      const claimTokensButton = document.getElementById("claimTokens");
-      const claimStatusP = document.getElementById("claimStatus");
-      
-      // --- CONNECT WALLET ---
-      connectWalletButton.onclick = async () => {
-        console.log("Connect Wallet button clicked");
-        if (window.solana && window.solana.isPhantom) {
+              console.log("PDAs computed:", {
+                dappConfigPda: dappConfigPda.toBase58(),
+                mintAuthorityPda: mintAuthorityPda.toBase58(),
+              });
+            } catch (err) {
+              console.error("Error connecting Phantom:", err);
+              walletAddressDiv.textContent = `Error: ${err.message}`;
+            }
+          } else {
+            walletAddressDiv.textContent = "Phantom wallet not found. Please install it.";
+          }
+        });
+        
+        // --- INITIALIZE DAPP EVENT LISTENER ---
+        initDappButton.addEventListener("click", async () => {
           try {
-            // Use the default connect() call (which uses the wallet's default behavior)
-            const resp = await window.solana.connect({ onlyIfTrusted: false });
-            console.log("Connect response:", resp);
-            walletAdapter = window.solana;
-            console.log("Wallet connected:", walletAdapter.publicKey.toString());
-            walletAddressDiv.textContent = `Connected: ${walletAdapter.publicKey.toString()}`;
-    
-            // Create a connection (using Devnet; ensure your page is served via HTTPS or localhost)
-            connection = new solanaWeb3.Connection(
-              solanaWeb3.clusterApiUrl("devnet"),
-              "confirmed"
+            const initAmount = Number(initAmountInput.value);
+            if (isNaN(initAmount) || initAmount <= 0) {
+              dappStatusP.textContent = "Please enter a valid initial mint amount.";
+              return;
+            }
+            // Prepare instruction data: [discriminator (8 bytes)] || [init amount (8-byte little-endian)]
+            const initAmountBytes = u64ToBytes(initAmount);
+            const initData = new Uint8Array(DISCRIMINATOR_INIT.length + initAmountBytes.length);
+            initData.set(DISCRIMINATOR_INIT, 0);
+            initData.set(initAmountBytes, DISCRIMINATOR_INIT.length);
+            
+            // Determine accounts:
+            // - dapp_config PDA (to be created)
+            // - initializer (wallet)
+            // - token_mint (TOKEN_MINT constant)
+            // - mint_authority PDA (to be created)
+            // - user_ata (associated token account for wallet and TOKEN_MINT)
+            // - System Program & Rent
+            // - Optionally, associated token program and token program
+            const userPubkey = walletAdapter.publicKey;
+            const userAta = await findAssociatedTokenAddress(userPubkey, TOKEN_MINT);
+            
+            let tx = new solanaWeb3.Transaction();
+            tx.add(
+              new solanaWeb3.TransactionInstruction({
+                programId: PROGRAM_ID,
+                keys: [
+                  { pubkey: dappConfigPda, isSigner: false, isWritable: true },
+                  { pubkey: userPubkey, isSigner: true, isWritable: true },
+                  { pubkey: TOKEN_MINT, isSigner: false, isWritable: false },
+                  { pubkey: mintAuthorityPda, isSigner: false, isWritable: true },
+                  { pubkey: userAta, isSigner: false, isWritable: true },
+                  { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
+                  { pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+                  { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+                  { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+                ],
+                data: initData,
+              })
             );
-    
-            // Compute PDAs that do not depend on the wallet:
-            // Global config PDA seeded with "dapp_config"
-            const seedConfig = new TextEncoder().encode("dapp_config");
-            [dappConfigPda] = solanaWeb3.PublicKey.findProgramAddressSync(
-              [seedConfig],
-              PROGRAM_ID
-            );
-            // Mint authority PDA seeded with "mint_authority"
-            const seedMintAuth = new TextEncoder().encode("mint_authority");
-            [mintAuthorityPda] = solanaWeb3.PublicKey.findProgramAddressSync(
-              [seedMintAuth],
-              PROGRAM_ID
-            );
-    
-            // Enable the other action buttons now that the wallet is connected.
-            initDappButton.disabled = false;
-            setExemptButton.disabled = false;
-            registerUserButton.disabled = false;
-            claimTokensButton.disabled = false;
-    
-            console.log("PDAs computed:", {
-              dappConfigPda: dappConfigPda.toBase58(),
-              mintAuthorityPda: mintAuthorityPda.toBase58(),
-            });
+            
+            tx.feePayer = userPubkey;
+            tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+            const signed = await walletAdapter.signAndSendTransaction(tx);
+            dappStatusP.textContent = `Dapp initialized. (Tx: ${signed.signature})`;
           } catch (err) {
-            console.error("Error connecting Phantom:", err);
-            walletAddressDiv.textContent = `Error: ${err.message}`;
+            dappStatusP.textContent = `Error initializing dapp: ${err.message}`;
           }
-        } else {
-          walletAddressDiv.textContent = "Phantom wallet not found. Please install it.";
-        }
-      };
-      
-      // --- INITIALIZE DAPP ---
-      initDappButton.onclick = async () => {
-        try {
-          const initAmount = Number(initAmountInput.value);
-          if (isNaN(initAmount) || initAmount <= 0) {
-            dappStatusP.textContent = "Please enter a valid initial mint amount.";
-            return;
+        });
+        
+        // --- SET EXEMPT EVENT LISTENER ---
+        setExemptButton.addEventListener("click", async () => {
+          try {
+            const newExemptStr = exemptAddressInput.value.trim();
+            if (!newExemptStr) {
+              setExemptStatusP.textContent = "Please enter a public key.";
+              return;
+            }
+            const newExempt = new solanaWeb3.PublicKey(newExemptStr);
+            // Prepare instruction data: [discriminator (8 bytes)] || [newExempt (32 bytes)]
+            const exemptData = new Uint8Array(DISCRIMINATOR_SET_EXEMPT.length + 32);
+            exemptData.set(DISCRIMINATOR_SET_EXEMPT, 0);
+            exemptData.set(newExempt.toBuffer(), DISCRIMINATOR_SET_EXEMPT.length);
+            
+            let tx = new solanaWeb3.Transaction();
+            tx.add(
+              new solanaWeb3.TransactionInstruction({
+                programId: PROGRAM_ID,
+                keys: [
+                  { pubkey: dappConfigPda, isSigner: false, isWritable: true },
+                  { pubkey: walletAdapter.publicKey, isSigner: true, isWritable: false },
+                ],
+                data: exemptData,
+              })
+            );
+            tx.feePayer = walletAdapter.publicKey;
+            tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+            const signed = await walletAdapter.signAndSendTransaction(tx);
+            setExemptStatusP.textContent = `Exempt address set. (Tx: ${signed.signature})`;
+          } catch (err) {
+            setExemptStatusP.textContent = `Error setting exempt: ${err.message}`;
           }
-          // Prepare instruction data: [discriminator (8 bytes)] || [init amount (8-byte little-endian)]
-          const initAmountBytes = u64ToBytes(initAmount);
-          const initData = new Uint8Array(DISCRIMINATOR_INIT.length + initAmountBytes.length);
-          initData.set(DISCRIMINATOR_INIT, 0);
-          initData.set(initAmountBytes, DISCRIMINATOR_INIT.length);
-          
-          // Determine accounts:
-          // - dapp_config PDA (to be created)
-          // - initializer (wallet)
-          // - token_mint (TOKEN_MINT constant)
-          // - mint_authority PDA (to be created)
-          // - user_ata (associated token account for wallet and TOKEN_MINT)
-          // - System Program & Rent
-          // - Optionally, associated token program and token program
-          const userPubkey = walletAdapter.publicKey;
-          const userAta = await findAssociatedTokenAddress(userPubkey, TOKEN_MINT);
-          
-          let tx = new solanaWeb3.Transaction();
-          tx.add(
-            new solanaWeb3.TransactionInstruction({
-              programId: PROGRAM_ID,
-              keys: [
-                { pubkey: dappConfigPda, isSigner: false, isWritable: true },
-                { pubkey: userPubkey, isSigner: true, isWritable: true },
-                { pubkey: TOKEN_MINT, isSigner: false, isWritable: false },
-                { pubkey: mintAuthorityPda, isSigner: false, isWritable: true },
-                { pubkey: userAta, isSigner: false, isWritable: true },
-                { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
-                { pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
-                { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-                { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-              ],
-              data: initData,
-            })
-          );
-          
-          tx.feePayer = userPubkey;
-          tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-          const signed = await walletAdapter.signAndSendTransaction(tx);
-          dappStatusP.textContent = `Dapp initialized. (Tx: ${signed.signature})`;
-        } catch (err) {
-          dappStatusP.textContent = `Error initializing dapp: ${err.message}`;
-        }
-      };
-      
-      // --- SET EXEMPT ---
-      setExemptButton.onclick = async () => {
-        try {
-          const newExemptStr = exemptAddressInput.value.trim();
-          if (!newExemptStr) {
-            setExemptStatusP.textContent = "Please enter a public key.";
-            return;
+        });
+        
+        // --- REGISTER USER EVENT LISTENER ---
+        registerUserButton.addEventListener("click", async () => {
+          try {
+            // Derive the user PDA using seed "user_pda" and the wallet's public key.
+            const seedUser = new TextEncoder().encode("user_pda");
+            [userPda] = solanaWeb3.PublicKey.findProgramAddressSync(
+              [seedUser, walletAdapter.publicKey.toBuffer()],
+              PROGRAM_ID
+            );
+            // Instruction data: just the discriminator for register_user.
+            const regData = DISCRIMINATOR_REGISTER_USER;
+            
+            let tx = new solanaWeb3.Transaction();
+            tx.add(
+              new solanaWeb3.TransactionInstruction({
+                programId: PROGRAM_ID,
+                keys: [
+                  { pubkey: dappConfigPda, isSigner: false, isWritable: false },
+                  { pubkey: walletAdapter.publicKey, isSigner: true, isWritable: true },
+                  // For the gateway token, we pass the wallet as an example.
+                  { pubkey: walletAdapter.publicKey, isSigner: false, isWritable: false },
+                  { pubkey: userPda, isSigner: false, isWritable: true },
+                  { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
+                  { pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+                ],
+                data: regData,
+              })
+            );
+            tx.feePayer = walletAdapter.publicKey;
+            tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+            const signed = await walletAdapter.signAndSendTransaction(tx);
+            registerStatusP.textContent = `User registered. (Tx: ${signed.signature})`;
+          } catch (err) {
+            registerStatusP.textContent = `Error registering user: ${err.message}`;
           }
-          const newExempt = new solanaWeb3.PublicKey(newExemptStr);
-          // Prepare instruction data: [discriminator (8 bytes)] || [newExempt (32 bytes)]
-          const exemptData = new Uint8Array(DISCRIMINATOR_SET_EXEMPT.length + 32);
-          exemptData.set(DISCRIMINATOR_SET_EXEMPT, 0);
-          exemptData.set(newExempt.toBuffer(), DISCRIMINATOR_SET_EXEMPT.length);
-          
-          let tx = new solanaWeb3.Transaction();
-          tx.add(
-            new solanaWeb3.TransactionInstruction({
-              programId: PROGRAM_ID,
-              keys: [
-                { pubkey: dappConfigPda, isSigner: false, isWritable: true },
-                { pubkey: walletAdapter.publicKey, isSigner: true, isWritable: false },
-              ],
-              data: exemptData,
-            })
-          );
-          tx.feePayer = walletAdapter.publicKey;
-          tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-          const signed = await walletAdapter.signAndSendTransaction(tx);
-          setExemptStatusP.textContent = `Exempt address set. (Tx: ${signed.signature})`;
-        } catch (err) {
-          setExemptStatusP.textContent = `Error setting exempt: ${err.message}`;
-        }
-      };
-      
-      // --- REGISTER USER ---
-      registerUserButton.onclick = async () => {
-        try {
-          // Derive the user PDA using seed "user_pda" and the wallet's public key.
-          const seedUser = new TextEncoder().encode("user_pda");
-          [userPda] = solanaWeb3.PublicKey.findProgramAddressSync(
-            [seedUser, walletAdapter.publicKey.toBuffer()],
-            PROGRAM_ID
-          );
-          // Instruction data: just the discriminator for register_user.
-          const regData = DISCRIMINATOR_REGISTER_USER;
-          
-          let tx = new solanaWeb3.Transaction();
-          tx.add(
-            new solanaWeb3.TransactionInstruction({
-              programId: PROGRAM_ID,
-              keys: [
-                { pubkey: dappConfigPda, isSigner: false, isWritable: false },
-                { pubkey: walletAdapter.publicKey, isSigner: true, isWritable: true },
-                // For the gateway token, here we pass the wallet as an example.
-                { pubkey: walletAdapter.publicKey, isSigner: false, isWritable: false },
-                { pubkey: userPda, isSigner: false, isWritable: true },
-                { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
-                { pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
-              ],
-              data: regData,
-            })
-          );
-          tx.feePayer = walletAdapter.publicKey;
-          tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-          const signed = await walletAdapter.signAndSendTransaction(tx);
-          registerStatusP.textContent = `User registered. (Tx: ${signed.signature})`;
-        } catch (err) {
-          registerStatusP.textContent = `Error registering user: ${err.message}`;
-        }
-      };
-      
-      // --- CLAIM TOKENS ---
-      claimTokensButton.onclick = async () => {
-        try {
-          // Derive the user PDA using the same seed "user_pda" as above.
-          const seedUser = new TextEncoder().encode("user_pda");
-          [userPda] = solanaWeb3.PublicKey.findProgramAddressSync(
-            [seedUser, walletAdapter.publicKey.toBuffer()],
-            PROGRAM_ID
-          );
-          // Derive the user's associated token account.
-          const userAta = await findAssociatedTokenAddress(walletAdapter.publicKey, TOKEN_MINT);
-          // Instruction data: just the discriminator for claim.
-          const claimData = DISCRIMINATOR_CLAIM;
-          
-          let tx = new solanaWeb3.Transaction();
-          tx.add(
-            new solanaWeb3.TransactionInstruction({
-              programId: PROGRAM_ID,
-              keys: [
-                { pubkey: dappConfigPda, isSigner: false, isWritable: false },
-                { pubkey: walletAdapter.publicKey, isSigner: true, isWritable: true },
-                { pubkey: walletAdapter.publicKey, isSigner: false, isWritable: false }, // gateway token placeholder
-                { pubkey: userPda, isSigner: false, isWritable: true },
-                { pubkey: TOKEN_MINT, isSigner: false, isWritable: true },
-                { pubkey: mintAuthorityPda, isSigner: false, isWritable: true },
-                { pubkey: userAta, isSigner: false, isWritable: true },
-                { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-                { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-                { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
-                { pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
-              ],
-              data: claimData,
-            })
-          );
-          tx.feePayer = walletAdapter.publicKey;
-          tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-          const signed = await walletAdapter.signAndSendTransaction(tx);
-          claimStatusP.textContent = `Tokens claimed. (Tx: ${signed.signature})`;
-        } catch (err) {
-          claimStatusP.textContent = `Error claiming tokens: ${err.message}`;
-        }
-      };
+        });
+        
+        // --- CLAIM TOKENS EVENT LISTENER ---
+        claimTokensButton.addEventListener("click", async () => {
+          try {
+            // Derive the user PDA using the same seed "user_pda" as above.
+            const seedUser = new TextEncoder().encode("user_pda");
+            [userPda] = solanaWeb3.PublicKey.findProgramAddressSync(
+              [seedUser, walletAdapter.publicKey.toBuffer()],
+              PROGRAM_ID
+            );
+            // Derive the user's associated token account.
+            const userAta = await findAssociatedTokenAddress(walletAdapter.publicKey, TOKEN_MINT);
+            // Instruction data: just the discriminator for claim.
+            const claimData = DISCRIMINATOR_CLAIM;
+            
+            let tx = new solanaWeb3.Transaction();
+            tx.add(
+              new solanaWeb3.TransactionInstruction({
+                programId: PROGRAM_ID,
+                keys: [
+                  { pubkey: dappConfigPda, isSigner: false, isWritable: false },
+                  { pubkey: walletAdapter.publicKey, isSigner: true, isWritable: true },
+                  { pubkey: walletAdapter.publicKey, isSigner: false, isWritable: false }, // gateway token placeholder
+                  { pubkey: userPda, isSigner: false, isWritable: true },
+                  { pubkey: TOKEN_MINT, isSigner: false, isWritable: true },
+                  { pubkey: mintAuthorityPda, isSigner: false, isWritable: true },
+                  { pubkey: userAta, isSigner: false, isWritable: true },
+                  { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+                  { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+                  { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
+                  { pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+                ],
+                data: claimData,
+              })
+            );
+            tx.feePayer = walletAdapter.publicKey;
+            tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+            const signed = await walletAdapter.signAndSendTransaction(tx);
+            claimStatusP.textContent = `Tokens claimed. (Tx: ${signed.signature})`;
+          } catch (err) {
+            claimStatusP.textContent = `Error claiming tokens: ${err.message}`;
+          }
+        });
+      });
     </script>
   </body>
 </html>
