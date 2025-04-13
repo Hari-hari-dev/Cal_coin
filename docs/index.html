@@ -121,40 +121,51 @@
       
       // --- CONNECT WALLET ---
       connectWalletButton.onclick = async () => {
+        console.log("connectWalletButton clicked");
         if (window.solana && window.solana.isPhantom) {
           try {
-            await window.solana.connect();
-            walletAdapter = window.solana;
-            walletAddressDiv.textContent = `Connected: ${walletAdapter.publicKey.toString()}`;
-            // Create a connection to Devnet (change if needed)
-            connection = new solanaWeb3.Connection(
+          console.log("Phantom provider found:", window.solana);
+            // Pass { onlyIfTrusted: false } to ensure the connection prompt always appears
+          await window.solana.connect({ onlyIfTrusted: false });
+          walletAdapter = window.solana;
+          console.log("Wallet connected:", walletAdapter.publicKey.toString());
+          walletAddressDiv.textContent = `Connected: ${walletAdapter.publicKey.toString()}`;
+
+            // Create a connection to Devnet (ensure you're served over HTTPS or on localhost)
+          connection = new solanaWeb3.Connection(
               solanaWeb3.clusterApiUrl("devnet"),
               "confirmed"
-            );
-            // Compute PDAs that do not depend on the wallet (dapp_config & mint_authority)
-            const seedConfig = new TextEncoder().encode("dapp_config");
-            [dappConfigPda] = solanaWeb3.PublicKey.findProgramAddressSync(
+          );
+          // Compute PDAs for global config and mint authority
+          const seedConfig = new TextEncoder().encode("dapp_config");
+          [dappConfigPda] = solanaWeb3.PublicKey.findProgramAddressSync(
               [seedConfig],
               PROGRAM_ID
-            );
-            const seedMintAuth = new TextEncoder().encode("mint_authority");
-            [mintAuthorityPda] = solanaWeb3.PublicKey.findProgramAddressSync(
+          );
+          const seedMintAuth = new TextEncoder().encode("mint_authority");
+          [mintAuthorityPda] = solanaWeb3.PublicKey.findProgramAddressSync(
               [seedMintAuth],
               PROGRAM_ID
-            );
-            
-            // Enable buttons now that wallet is connected.
-            initDappButton.disabled = false;
-            setExemptButton.disabled = false;
-            registerUserButton.disabled = false;
-            claimTokensButton.disabled = false;
+          );
+
+            // Enable the other action buttons
+          initDappButton.disabled = false;
+          setExemptButton.disabled = false;
+          registerUserButton.disabled = false;
+          claimTokensButton.disabled = false;
+          console.log("PDAs computed:", {
+              dappConfigPda: dappConfigPda.toBase58(),
+              mintAuthorityPda: mintAuthorityPda.toBase58(),
+          });
           } catch (err) {
-            walletAddressDiv.textContent = `Error: ${err.message}`;
+          console.error("Error connecting Phantom:", err);
+          walletAddressDiv.textContent = `Error: ${err.message}`;
           }
         } else {
-          walletAddressDiv.textContent = "Phantom wallet not found. Please install it.";
+            walletAddressDiv.textContent = "Phantom wallet not found. Please install it.";
         }
       };
+
       
       // --- INITIALIZE DAPP ---
       initDappButton.onclick = async () => {
