@@ -126,7 +126,7 @@
           try {
           console.log("Phantom provider found:", window.solana);
             // Pass { onlyIfTrusted: false } to ensure the connection prompt always appears
-          await window.solana.connect({ onlyIfTrusted: false });
+          await window.solana.connect({ onlyIfTrusted: true });
           walletAdapter = window.solana;
           console.log("Wallet connected:", walletAdapter.publicKey.toString());
           walletAddressDiv.textContent = `Connected: ${walletAdapter.publicKey.toString()}`;
