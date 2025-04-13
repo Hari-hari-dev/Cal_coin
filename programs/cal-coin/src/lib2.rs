@@ -48,7 +48,7 @@ pub mod cal_coin {
         // Initially, set exempt_address to default (all zeros).
         dapp_config.exempt_address = Pubkey::default();
         // Store the mint authority bump, derived from the seeds.
-        dapp_config.mint_authority_bump = ctx.bumps.mint_authority;
+        dapp_config.mint_authority_bump = *ctx.bumps.get("mint_authority").unwrap();
 
         // The ATA for the initializer is auto-created via the associated_token constraint.
         // Mint the specified initial amount of tokens to the initializer's ATA.
