@@ -118,13 +118,13 @@
         console.log("Connect Wallet button clicked");
         if (window.solana && window.solana.isPhantom) {
           try {
-            // Force the connection prompt by passing onlyIfTrusted: false
-            await window.solana.connect({ onlyIfTrusted: false });
+            // Use the default connect() call (which uses the wallet's default behavior)
+            await window.solana.connect();
             walletAdapter = window.solana;
             console.log("Wallet connected:", walletAdapter.publicKey.toString());
             walletAddressDiv.textContent = `Connected: ${walletAdapter.publicKey.toString()}`;
     
-            // Create a connection (using Devnet; ensure your page is served via HTTPS/localhost)
+            // Create a connection (using Devnet; ensure your page is served via HTTPS or localhost)
             connection = new solanaWeb3.Connection(
               solanaWeb3.clusterApiUrl("devnet"),
               "confirmed"
@@ -241,7 +241,6 @@
               data: exemptData,
             })
           );
-          
           tx.feePayer = walletAdapter.publicKey;
           tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
           const signed = await walletAdapter.signAndSendTransaction(tx);
