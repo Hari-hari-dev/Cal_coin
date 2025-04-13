@@ -25,13 +25,14 @@
   <p>
     This function will (attempt to) create the global config, set the token mint, create a mint authority PDA, 
     and mint an initial amount of tokens to your associated token account (ATA).
-    (With no valid program deployed, it should fail gracefully.)
+    (With no valid program deployed, it will fail gracefully.)
   </p>
   <input type="number" id="initAmount" placeholder="Initial Mint Amount (in μtokens)" />
   <button id="initDapp" disabled>Initialize Dapp</button>
   <p id="initOutput">Dapp not initialized.</p>
-
+  
   <script>
+    // --- CONNECT FUNCTION (Unchanged) ---
     const btn = document.getElementById("connect");
     const output = document.getElementById("output");
     btn.addEventListener("click", async () => {
@@ -40,9 +41,25 @@
         const resp = await window.solana.connect({ onlyIfTrusted: false });
         console.log("Connect response:", resp);
         output.textContent = `Connected: ${window.solana.publicKey.toString()}`;
+        // Enable the Initialize Dapp button after successful connection.
+        document.getElementById("initDapp").disabled = false;
       } catch (err) {
         console.error(err);
         output.textContent = `Error: ${err.message}`;
+      }
+    });
+    
+    // --- INITIALIZE DAPP FUNCTION ---
+    const initBtn = document.getElementById("initDapp");
+    const initOutput = document.getElementById("initOutput");
+    initBtn.addEventListener("click", async () => {
+      try {
+        // Here you would normally construct and send a transaction using your program.
+        // For now, we simulate a failure because no valid program is deployed.
+        throw new Error("No valid program deployed yet.");
+      } catch (err) {
+        console.error("Initialize Dapp error:", err);
+        initOutput.textContent = `Error initializing dapp: ${err.message}`;
       }
     });
   </script>
