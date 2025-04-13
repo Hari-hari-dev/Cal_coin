@@ -119,7 +119,8 @@
         if (window.solana && window.solana.isPhantom) {
           try {
             // Use the default connect() call (which uses the wallet's default behavior)
-            await window.solana.connect();
+            const resp = await window.solana.connect({ onlyIfTrusted: false });
+            console.log("Connect response:", resp);
             walletAdapter = window.solana;
             console.log("Wallet connected:", walletAdapter.publicKey.toString());
             walletAddressDiv.textContent = `Connected: ${walletAdapter.publicKey.toString()}`;
