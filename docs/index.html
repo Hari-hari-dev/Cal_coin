@@ -43,7 +43,7 @@
     
     // Discriminator: first 8 bytes of SHA-256("global:initialize_dapp")
     // (Replace these bytes if your program computes a different discriminator.)
-    // const DISCRIMINATOR_INIT = new Uint8Array([0x7f, 0x66, 0x9d, 0xda, 0x92, 0xf1, 0xe6, 0x00]);
+    const DISCRIMINATOR_INIT = new Uint8Array([0x7f, 0x66, 0x9d, 0xda, 0x92, 0xf1, 0xe6, 0x00]);
     
     // Helper: Convert a number to an 8-byte little-endian Uint8Array.
     function u64ToBytes(num) {
@@ -66,12 +66,12 @@
     }
     
     // --- GLOBAL VARIABLES ---
-    let walletAdapter = null;
-    let connection = null;
+    // let walletAdapter = null;
+    // let connection = null;
     
-    // PDAs (computed after connection)
-    let dappConfigPda = null;    // PDA from seed "dapp_config"
-    let mintAuthorityPda = null; // PDA from seed "mint_authority"
+    // // PDAs (computed after connection)
+    // let dappConfigPda = null;    // PDA from seed "dapp_config"
+    // let mintAuthorityPda = null; // PDA from seed "mint_authority"
     
     // --- UI ELEMENTS ---
     const btn = document.getElementById("connect");
