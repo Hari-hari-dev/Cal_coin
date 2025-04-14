@@ -2,8 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Solana dApp – Minimal Initialize Dapp Example</title>
-  <!-- Include Solana web3.js via CDN -->
+  <title>Solana dApp – Initialize Dapp and Mint</title>
   <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 2em; }
@@ -12,160 +11,102 @@
   </style>
 </head>
 <body>
-  <h1>Solana dApp – Minimal Initialize Dapp Example</h1>
-  
-  <!-- Wallet Connection Section -->
+  <h1>Initialize Dapp and Mint</h1>
+
+  <!-- Wallet Connection -->
   <button id="connect">Connect Phantom</button>
   <p id="output">Not connected</p>
-  
+
   <hr>
-  
-  <!-- Initialize Dapp Section -->
+
+  <!-- Initialize Dapp and Mint -->
   <h2>Initialize Dapp</h2>
-  <p>
-    This function will (attempt to) create the global config, set the token mint, create a mint authority PDA, 
-    and mint an initial amount of tokens to your associated token account (ATA).
-    (With no valid program deployed, it will fail gracefully.)
-  </p>
   <input type="number" id="initAmount" placeholder="Initial Mint Amount (in μtokens)" />
-  <button id="initDapp" disabled>Initialize Dapp</button>
+  <button id="initDapp" disabled>Initialize Dapp and Mint</button>
   <p id="initOutput">Dapp not initialized.</p>
-  
+
   <script>
-    // --- CONSTANTS & HELPER FUNCTIONS ---
-    
-    // Your program's deployed Program ID.
-    const PROGRAM_ID = new solanaWeb3.PublicKey("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
-    // Replace with your actual token mint address.
-    //const TOKEN_MINT = new solanaWeb3.PublicKey("YourTokenMintAddressHere");
-    const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
-    const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
-    
-    // Discriminator: first 8 bytes of SHA-256("global:initialize_dapp")
-    // (Replace these bytes if your program computes a different discriminator.)
-    const DISCRIMINATOR_INIT = new Uint8Array([0x7f, 0x66, 0x9d, 0xda, 0x92, 0xf1, 0xe6, 0x00]);
-    
-    // Helper: Convert a number to an 8-byte little-endian Uint8Array.
-    function u64ToBytes(num) {
-      const buffer = new ArrayBuffer(8);
-      new DataView(buffer).setBigUint64(0, BigInt(num), true);
-      return new Uint8Array(buffer);
-    }
-    
-    // Helper: Derive the Associated Token Account (ATA) using known seeds.
-    function findAssociatedTokenAddress(walletAddress, tokenMintAddress) {
-      const [ata] = solanaWeb3.PublicKey.findProgramAddressSync(
-        [
-          walletAddress.toBytes(),
-          TOKEN_PROGRAM_ID.toBytes(),
-          tokenMintAddress.toBytes(),
-        ],
-        ASSOCIATED_TOKEN_PROGRAM_ID
-      );
-      return ata;
-    }
-    
-    // --- GLOBAL VARIABLES ---
-    let walletAdapter = null;
-    let connection = null;
-    
-    // PDAs (computed after connection)
-    let dappConfigPda = null;    // PDA from seed "dapp_config"
-    let mintAuthorityPda = null; // PDA from seed "mint_authority"
-    
-    // --- UI ELEMENTS ---
+    const PROGRAM_ID = new solanaWeb3.PublicKey("Ut7RHuZp1PKQ581aa2TpJ39UYgs6vBna6v67RvpS9Ys");
+    const discriminator_init = Uint8Array.from([0xeb,0x1e,0xb3,0x94,0xb9,0xa8,0x7d,0x4b]);
+
     const btn = document.getElementById("connect");
     const output = document.getElementById("output");
     const initBtn = document.getElementById("initDapp");
-    const initAmountInput = document.getElementById("initAmount");
     const initOutput = document.getElementById("initOutput");
-    
-    // --- CONNECT FUNCTION (Unchanged) ---
-    btn.addEventListener("click", async () => {
+
+    let wallet, connection;
+
+    btn.onclick = async () => {
       try {
-        console.log("Button clicked");
-        const resp = await window.solana.connect({ onlyIfTrusted: false });
-        console.log("Connect response:", resp);
-        walletAdapter = window.solana;
-        output.textContent = `Connected: ${walletAdapter.publicKey.toString()}`;
-        // Enable the Initialize Dapp button after a successful connection.
+        wallet = window.solana;
+        await wallet.connect({ onlyIfTrusted: false });
+        connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('devnet'));
+        output.textContent = `Connected: ${wallet.publicKey}`;
         initBtn.disabled = false;
-        
-        // Create a connection (using Devnet—make sure the page is served on HTTPS/localhost)
-        connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl("devnet"), "confirmed");
-  
-        // Compute the global PDAs:
-        // dapp_config PDA from seed "dapp_config"
-        const seedConfig = new TextEncoder().encode("dapp_config");
-        [dappConfigPda] = solanaWeb3.PublicKey.findProgramAddressSync([seedConfig], PROGRAM_ID);
-  
-        // mint_authority PDA from seed "mint_authority"
-        const seedMintAuth = new TextEncoder().encode("mint_authority");
-        [mintAuthorityPda] = solanaWeb3.PublicKey.findProgramAddressSync([seedMintAuth], PROGRAM_ID);
-  
-        console.log("PDAs:", {
-          dappConfigPda: dappConfigPda.toBase58(),
-          mintAuthorityPda: mintAuthorityPda.toBase58(),
-        });
       } catch (err) {
-        console.error(err);
         output.textContent = `Error: ${err.message}`;
       }
-    });
-    
-    // --- INITIALIZE DAPP FUNCTION ---
-    initBtn.addEventListener("click", async () => {
+    };
+
+    initBtn.onclick = async () => {
       try {
-        const initAmount = Number(initAmountInput.value);
-        if (!initAmount || initAmount <= 0) {
-          initOutput.textContent = "Please enter a valid initial mint amount.";
-          return;
-        }
-  
-        // Build instruction data: discriminator (8 bytes) || initial_mint_amount (8-byte little endian)
-        const mintAmountBytes = u64ToBytes(initAmount);
-        const instructionData = new Uint8Array(DISCRIMINATOR_INIT.length + mintAmountBytes.length);
-        instructionData.set(DISCRIMINATOR_INIT, 0);
-        instructionData.set(mintAmountBytes, DISCRIMINATOR_INIT.length);
-  
-        const userPubkey = walletAdapter.publicKey;
-        // Derive the user's ATA for the token mint.
-        const userAta = findAssociatedTokenAddress(userPubkey, TOKEN_MINT);
-  
-        // Build the transaction. The accounts below are based on your Anchor program's requirements.
-        const keys = [
-          { pubkey: dappConfigPda, isSigner: false, isWritable: true },
-          { pubkey: userPubkey, isSigner: true, isWritable: true },
-          { pubkey: TOKEN_MINT, isSigner: false, isWritable: false },
-          { pubkey: mintAuthorityPda, isSigner: false, isWritable: true },
-          { pubkey: userAta, isSigner: false, isWritable: true },
-          { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
-          { pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
-          { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-          { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        ];
-  
+        const initialMintAmount = BigInt(document.getElementById("initAmount").value);
+        if (initialMintAmount <= 0n) throw new Error("Invalid mint amount");
+
+        const mintKeypair = solanaWeb3.Keypair.generate();
+
+        const [dappConfigPda] = solanaWeb3.PublicKey.findProgramAddressSync(
+          [Buffer.from("dapp"), mintKeypair.publicKey.toBytes()], PROGRAM_ID
+        );
+
+        const [mintAuthorityPda] = solanaWeb3.PublicKey.findProgramAddressSync(
+          [Buffer.from("mint_authority")], PROGRAM_ID
+        );
+
+        const ata = await solanaWeb3.PublicKey.findProgramAddressSync(
+          [wallet.publicKey.toBuffer(), TOKEN_2022_PROGRAM_ID.toBuffer(), mintKeypair.publicKey.toBuffer()],
+          new solanaWeb3.PublicKey('ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq')
+        );
+
+        const initAmountBuffer = new ArrayBuffer(8);
+        new DataView(initAmountBuffer).setBigUint64(0, initialMintAmount, true);
+
+        const data = Buffer.concat([
+          discriminator_init,
+          Buffer.from(initAmountBuffer)
+        ]);
+
         const tx = new solanaWeb3.Transaction().add(
           new solanaWeb3.TransactionInstruction({
             programId: PROGRAM_ID,
-            keys,
-            data: instructionData,
+            keys: [
+              {pubkey: dappConfigPda, isSigner: false, isWritable: true},
+              {pubkey: mintAuthorityPda, isSigner: false, isWritable: true},
+              {pubkey: mintKeypair.publicKey, isSigner: false, isWritable: true},
+              {pubkey: wallet.publicKey, isSigner: true, isWritable: true},
+              {pubkey: ata[0], isSigner: false, isWritable: true},
+              {pubkey: new solanaWeb3.PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'), isSigner: false, isWritable: false},
+              {pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false},
+              {pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false},
+              {pubkey: new solanaWeb3.PublicKey('ATokenGPvbhRt7Z8BUGKh9dn1dPnse5xCCom1ULxq'), isSigner: false, isWritable: false},
+            ],
+            data: data
           })
         );
-  
-        tx.feePayer = userPubkey;
+
+        tx.feePayer = wallet.publicKey;
         tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-  
-        const { signature } = await walletAdapter.signAndSendTransaction(tx);
-        await connection.confirmTransaction(signature);
-  
-        initOutput.textContent = `Dapp initialized. (Tx: ${signature})`;
+        tx.partialSign(mintKeypair);
+
+        const signedTx = await wallet.signTransaction(tx);
+        const sig = await connection.sendRawTransaction(signedTx.serialize());
+
+        initOutput.textContent = `Transaction sent: ${sig}`;
       } catch (err) {
-        console.error("Initialize Dapp error:", err);
+        console.error(err);
         initOutput.textContent = `Error initializing dapp: ${err.message}`;
       }
-    });
+    };
   </script>
 </body>
 </html>
-

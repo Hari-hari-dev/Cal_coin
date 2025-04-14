@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-fancoin = "BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex"
+fancoin = "Ut7RHuZp1PKQ581aa2TpJ39UYgs6vBna6v67RvpS9Ys"
 
 [registry]
 url = "https://api.apr.dev"

@@ -24,7 +24,7 @@ def compute_account_discriminator(account_name: str) -> bytes:
 # Hard-coded functions for specific instructions
 
 def discriminator_initialize_dapp() -> bytes:
-    return compute_instruction_discriminator("initialize_dapp")
+    return compute_instruction_discriminator("initialize_dapp_and_mint")
 
 def discriminator_set_exempt() -> bytes:
     return compute_instruction_discriminator("set_exempt")
@@ -54,7 +54,7 @@ if __name__ == '__main__':
     claim_disc = discriminator_claim().hex()
     
     print("Instruction Discriminators:")
-    print(f"initialize_dapp: {init_disc}")
+    print(f"initialize_dapp_and_mint: {init_disc}")
     print(f"set_exempt:      {set_exempt_disc}")
     print(f"register_user:   {register_user_disc}")
     print(f"claim:           {claim_disc}")

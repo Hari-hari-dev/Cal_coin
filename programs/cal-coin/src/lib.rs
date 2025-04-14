@@ -3,27 +3,15 @@ use anchor_lang::prelude::InterfaceAccount;
 use anchor_lang::system_program;
 use anchor_spl::{
     token_2022::{self as token_2022, mint_to, ID as TOKEN_2022_PROGRAM_ID},
-    // The 2022 account interfaces:
-    //token_interface::{Mint, MintTo, Account as TokenAccount, Token2022 as Token},
+    associated_token::AssociatedToken,
+    token_interface::{Mint, Token2022, TokenAccount},
 };
-//use anchor_spl::token_2022::TokenAccount;
-//use spl_token_2022::state::Account as TokenAccount2022;
-use anchor_spl::token_interface::{
-    //Account as TokenAccount2022,//GenericTokenAccount as TokenAccount,
-    Mint,
-    Token2022,       // The “program” type for your token_program field
-};
-use anchor_spl::token_interface::TokenAccount;
-
 use solana_gateway::Gateway;
-
 use anchor_spl::token_2022::MintTo;
-//use anchor_spl::token_2022::Account;
-use anchor_spl::associated_token::AssociatedToken;
 use sha3::{Digest, Keccak256};
-use std::convert::TryInto;
 use std::str::FromStr;
-declare_id!("BYJtTQxe8F1Zi41bzWRStVPf57knpst3JqvZ7P5EMjex");
+
+declare_id!("Ut7RHuZp1PKQ581aa2TpJ39UYgs6vBna6v67RvpS9Ys");
 
 #[program]
 pub mod cal_coin {
@@ -31,56 +19,66 @@ pub mod cal_coin {
 
     /// Initialize the dapp configuration.
     ///
-    /// This instruction sets up the global config by saving:
+    /// This instruction sets up the global config by storing:
     /// - The token mint (that will be used for distribution),
-    /// - The gatekeeper network for gateway checks (hard-coded here),
-    /// - The bump for the mint authority PDA.
+    /// - The gatekeeper network (hard-coded),
+    /// - The bump for the mint authority PDA,
+    /// - The owner.
     ///
-    /// It also creates (or reuses) the initializer’s associated token account (ATA)
-    /// and mints `initial_mint_amount` tokens to that ATA.
-    pub fn initialize_dapp(ctx: Context<InitializeDapp>, initial_mint_amount: u64) -> Result<()> {
-        let dapp_config = &mut ctx.accounts.dapp_config;
-        // Use a hard-coded gatekeeper network (adjust if needed)
-        dapp_config.gatekeeper_network = Pubkey::from_str("uniqobk8oGh4XBLMqM68K8M2zNu3CdYX7q5go7whQiv")
+    /// It also pre-mints tokens to the commission ATA if specified.
+    /// Importantly, it ensures that the configuration is only initialized once.
+    pub fn initialize_dapp_and_mint(
+        ctx: Context<InitializeDappAndMint>,
+        initial_commission_tokens: u64,
+    ) -> Result<()> {
+        let dapp = &mut ctx.accounts.dapp_config;
+        
+        // Block reinitialization.
+        require!(!dapp.initialized, ErrorCode::AlreadyInitialized);
+
+        // (A) Store the token mint address.
+        dapp.token_mint = ctx.accounts.mint_for_dapp.key();
+        // (B) Set the owner.
+        dapp.owner = ctx.accounts.user.key();
+        // (C) Set the gatekeeper network (hard-coded).
+        dapp.gatekeeper_network = Pubkey::from_str("uniqobk8oGh4XBLMqM68K8M2zNu3CdYX7q5go7whQiv")
             .unwrap();
-        // Set the token mint from the provided token_mint account.
-        dapp_config.token_mint = ctx.accounts.token_mint.key();
-        // Initially, set exempt_address to default (all zeros).
-        dapp_config.exempt_address = Pubkey::default();
-        // Store the mint authority bump, derived from the seeds.
-        dapp_config.mint_authority_bump = ctx.bumps.mint_authority;
+        // (D) Set exempt_address to default (all zeros).
+        dapp.exempt_address = Pubkey::default();
+        // (E) Store the bump for the mint authority.
+        dapp.mint_authority_bump = ctx.bumps.mint_authority;
+        
+        // (F) Optionally pre-mint commission tokens.
+        if initial_commission_tokens > 0 {
+            let bump = ctx.bumps.mint_authority;
+            let seeds = &[b"mint_authority".as_ref(), &[bump]];
+            let signer_seeds = &[&seeds[..]];
+            let cpi_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                MintTo {
+                    mint: ctx.accounts.mint_for_dapp.to_account_info(),
+                    to: ctx.accounts.commission_ata.to_account_info(),
+                    authority: ctx.accounts.mint_authority.to_account_info(),
+                },
+                signer_seeds,
+            );
+            token_2022::mint_to(cpi_ctx, initial_commission_tokens)?;
+        }
 
-        // The ATA for the initializer is auto-created via the associated_token constraint.
-        // Mint the specified initial amount of tokens to the initializer's ATA.
-        let seeds = &[b"mint_authority".as_ref(), &[dapp_config.mint_authority_bump]];
-        let signer_seeds = &[&seeds[..]];
-        let cpi_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            MintTo {
-                mint: ctx.accounts.token_mint.to_account_info(),
-                to: ctx.accounts.user_ata.to_account_info(),
-                authority: ctx.accounts.mint_authority.to_account_info(),
-            },
-            signer_seeds,
-        );
-        token_2022::mint_to(cpi_ctx, initial_mint_amount)?;
-
-        msg!("Dapp initialized! Token Mint: {}", dapp_config.token_mint);
+        // Mark the configuration as initialized.
+        dapp.initialized = true;
+        
+        msg!("Dapp initialized! Mint: {}", dapp.token_mint);
         Ok(())
     }
 
-    /// One-time registration for a user:
-    /// - Skips gateway check if exempt,
-    /// - Otherwise checks gateway token,
-    /// - Creates a [UserPda] for storing `last_claimed_timestamp`.
+    /// One-time registration for a user.
     pub fn register_user(ctx: Context<RegisterUser>) -> Result<()> {
         let cfg = &ctx.accounts.dapp_config;
         let user_key = ctx.accounts.user.key();
 
         if user_key != cfg.exempt_address {
-            let gatekeeper_network: Pubkey =
-                Pubkey::from_str("uniqobk8oGh4XBLMqM68K8M2zNu3CdYX7q5go7whQiv").unwrap();
-
+            let gatekeeper_network = Pubkey::from_str("uniqobk8oGh4XBLMqM68K8M2zNu3CdYX7q5go7whQiv").unwrap();
             Gateway::verify_gateway_token_account_info(
                 &ctx.accounts.gateway_token.to_account_info(),
                 &user_key,
@@ -107,20 +105,14 @@ pub mod cal_coin {
         Ok(())
     }
 
-    /// Claim tokens repeatedly:
-    /// - If exempt, skip gateway check,
-    /// - Otherwise check gateway token,
-    /// - Enforces a 60s cooldown,
-    /// - Mints tokens to the user’s associated token account from the dapp mint.
+    /// Claim tokens repeatedly.
     pub fn claim(ctx: Context<Claim>) -> Result<()> {
         let cfg = &ctx.accounts.dapp_config;
         let user_key = ctx.accounts.user.key();
         let user_pda = &mut ctx.accounts.user_pda;
 
-        // 1) Gateway or Exempt check.
         if user_key != cfg.exempt_address {
-            let gatekeeper_network = Pubkey::from_str("uniqobk8oGh4XBLMqM68K8M2zNu3CdYX7q5go7whQiv")
-                .unwrap();
+            let gatekeeper_network = Pubkey::from_str("uniqobk8oGh4XBLMqM68K8M2zNu3CdYX7q5go7whQiv").unwrap();
             Gateway::verify_gateway_token_account_info(
                 &ctx.accounts.gateway_token.to_account_info(),
                 &user_key,
@@ -135,12 +127,10 @@ pub mod cal_coin {
             msg!("User is exempt => skipping gateway check in claim");
         }
 
-        // 2) Enforce a 60-second cooldown.
         let now = Clock::get()?.unix_timestamp;
         let elapsed = now.saturating_sub(user_pda.last_claimed_timestamp);
         require!(elapsed >= 60, ErrorCode::CooldownNotMet);
 
-        // 3) Determine the mint amount (1.25 tokens per minute at 6 decimals ~ 20,833 μtokens per second).
         let tokens_per_second_micro = 20_833u64;
         let minted_amount = tokens_per_second_micro.saturating_mul(elapsed as u64);
         if minted_amount == 0 {
@@ -148,11 +138,9 @@ pub mod cal_coin {
             return Ok(());
         }
 
-        // 4) Mint tokens to user's ATA using the mint authority PDA.
         let bump = cfg.mint_authority_bump;
         let seeds = &[b"mint_authority".as_ref(), &[bump]];
         let signer_seeds = &[&seeds[..]];
-
         let cpi_ctx = CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             MintTo {
@@ -164,9 +152,7 @@ pub mod cal_coin {
         );
         token_2022::mint_to(cpi_ctx, minted_amount)?;
 
-        // 5) Update last claimed timestamp.
         user_pda.last_claimed_timestamp = now;
-
         msg!(
             "Claim => user={}, minted={} μtokens, elapsed={}s, last_claimed={}",
             user_key,
@@ -177,18 +163,17 @@ pub mod cal_coin {
         Ok(())
     }
 
-    /// Sets a new exempt address. Only the *current* exempt address may do so
-    /// (or the first caller if unset).
+    /// Change the exempt address. The update can be performed by the current exempt or the owner.
     pub fn set_exempt(ctx: Context<SetExempt>, new_exempt: Pubkey) -> Result<()> {
         let cfg = &mut ctx.accounts.dapp_config;
         let signer_key = ctx.accounts.current_exempt.key();
 
-        if cfg.exempt_address != Pubkey::default() {
-            require!(
-                signer_key == cfg.exempt_address,
-                ErrorCode::NotExemptAddress
-            );
-        }
+        require!(
+            cfg.exempt_address == Pubkey::default() ||
+            signer_key == cfg.exempt_address ||
+            signer_key == cfg.owner,
+            ErrorCode::NotExemptAddress
+        );
 
         cfg.exempt_address = new_exempt;
         msg!("Exempt address updated => new_exempt={}", new_exempt);
@@ -200,26 +185,26 @@ pub mod cal_coin {
 //  STATE ACCOUNTS
 // ---------------------------------------------------------------------
 
-/// Global configuration storing the gatekeeper network, token mint, and mint authority bump.
 #[account]
 pub struct DappConfig {
-    pub gatekeeper_network: Pubkey,
-    pub token_mint: Pubkey,
-    pub mint_authority_bump: u8,
-    pub exempt_address: Pubkey,
+    pub gatekeeper_network: Pubkey,  // Gatekeeper network ID.
+    pub token_mint: Pubkey,          // Token mint used for distribution.
+    pub mint_authority_bump: u8,     // Bump for mint authority PDA.
+    pub exempt_address: Pubkey,      // Exempt address.
+    pub owner: Pubkey,               // Owner of the dapp.
+    pub initialized: bool,           // Flag to block re-initializing.
 }
 
 impl DappConfig {
-    pub const LEN: usize = 8 + 32 + 32 + 1 + 32;
+    pub const LEN: usize = 8 + 32 + 32 + 1 + 32 + 1; // 8 discriminator + sum of fields
 }
 
-/// A PDA that holds the bump for the mint authority (used for signing).
 #[account]
-pub struct MintAuthorityPda {
+pub struct MintAuthority {
     pub bump: u8,
 }
 
-impl MintAuthorityPda {
+impl MintAuthority {
     pub const LEN: usize = 8 + 1;
 }
 
@@ -239,45 +224,51 @@ impl UserPda {
 // ---------------------------------------------------------------------
 
 #[derive(Accounts)]
-pub struct InitializeDapp<'info> {
+#[instruction(initial_commission_tokens: u64)]
+pub struct InitializeDappAndMint<'info> {
     #[account(
         init,
-        seeds = [b"dapp_config"],
-        bump,
-        payer = initializer,
-        space = DappConfig::LEN
+        payer = user,
+        space = DappConfig::LEN,
+        seeds = [b"dapp", mint_for_dapp.key().as_ref()],
+        bump
     )]
     pub dapp_config: Account<'info, DappConfig>,
-
-    #[account(mut)]
-    pub initializer: Signer<'info>,
-
-    /// The token mint to be used for distribution.
-    /// This account must be pre-created (or created via a separate process).
-    pub token_mint: InterfaceAccount<'info, Mint>,
-
-    /// The mint authority PDA, derived with seeds [b"mint_authority"].
+    
     #[account(
         init,
+        payer = user,
+        space = MintAuthority::LEN,
         seeds = [b"mint_authority"],
-        bump,
-        payer = initializer,
-        space = MintAuthorityPda::LEN,
+        bump
     )]
-    pub mint_authority: Account<'info, MintAuthorityPda>,
-
-    /// The initializer's associated token account for the token mint.
+    pub mint_authority: Account<'info, MintAuthority>,
+    
+    #[account(
+        init,
+        payer = user,
+        seeds = [b"my_spl_mint", user.key().as_ref()],
+        bump,
+        mint::decimals = 6,
+        mint::authority = mint_authority,
+        mint::freeze_authority = mint_authority
+    )]
+    pub mint_for_dapp: InterfaceAccount<'info, Mint>,
+    
+    #[account(mut)]
+    pub user: Signer<'info>,
+    
     #[account(
         init_if_needed,
-        payer = initializer,
-        associated_token::mint = token_mint,
-        associated_token::authority = initializer
+        payer = user,
+        associated_token::mint = mint_for_dapp,
+        associated_token::authority = user
     )]
-    pub user_ata: InterfaceAccount<'info, TokenAccount>,
-
+    pub commission_ata: InterfaceAccount<'info, TokenAccount>,
+    
     #[account(address = TOKEN_2022_PROGRAM_ID)]
     pub token_program: Program<'info, Token2022>,
-
+    
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
@@ -290,12 +281,12 @@ pub struct RegisterUser<'info> {
         bump
     )]
     pub dapp_config: Account<'info, DappConfig>,
-
+    
     #[account(mut)]
     pub user: Signer<'info>,
-
+    
     pub gateway_token: UncheckedAccount<'info>,
-
+    
     #[account(
         init,
         payer = user,
@@ -304,7 +295,7 @@ pub struct RegisterUser<'info> {
         bump
     )]
     pub user_pda: Account<'info, UserPda>,
-
+    
     #[account(address = TOKEN_2022_PROGRAM_ID)]
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
@@ -317,31 +308,31 @@ pub struct Claim<'info> {
         bump
     )]
     pub dapp_config: Account<'info, DappConfig>,
-
+    
     #[account(mut)]
     pub user: Signer<'info>,
-
+    
     pub gateway_token: UncheckedAccount<'info>,
-
+    
     #[account(
         mut,
         seeds = [b"user_pda", user.key().as_ref()],
         bump
     )]
     pub user_pda: Account<'info, UserPda>,
-
+    
     #[account(
         mut,
         constraint = token_mint.key() == dapp_config.token_mint
     )]
     pub token_mint: InterfaceAccount<'info, Mint>,
-
+    
     #[account(
         seeds = [b"mint_authority"],
         bump = dapp_config.mint_authority_bump,
     )]
-    pub mint_authority: Account<'info, MintAuthorityPda>,
-
+    pub mint_authority: Account<'info, MintAuthority>,
+    
     #[account(
         init_if_needed,
         payer = user,
@@ -349,10 +340,10 @@ pub struct Claim<'info> {
         associated_token::authority = user
     )]
     pub user_ata: InterfaceAccount<'info, TokenAccount>,
-
+    
     #[account(address = TOKEN_2022_PROGRAM_ID)]
     pub token_program: Program<'info, Token2022>,
-
+    
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
@@ -366,7 +357,7 @@ pub struct SetExempt<'info> {
         bump
     )]
     pub dapp_config: Account<'info, DappConfig>,
-
+    
     #[account(mut)]
     pub current_exempt: Signer<'info>,
 }
@@ -381,6 +372,14 @@ pub enum ErrorCode {
     CooldownNotMet,
     #[msg("Gateway token check failed.")]
     GatewayCheckFailed,
-    #[msg("Signer is not the current exempt address.")]
+    #[msg("Signer is not authorized to change exempt address.")]
     NotExemptAddress,
+    #[msg("Dapp configuration already initialized.")]
+    AlreadyInitialized,
+    #[msg("Commission too high.")]
+    CommissionTooLarge,
+    #[msg("Issuance rate too high.")]
+    IssuanceRateTooHigh,
+    #[msg("Claim rate too high.")]
+    ClaimRateTooHigh,
 }
