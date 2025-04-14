@@ -3,6 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <title>Solana dApp – Initialize Dapp and Mint</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/buffer/6.0.3/buffer.min.js"></script>
+
+  <!-- 2. Make Buffer globally available for libraries -->
+  <script> window.Buffer = window.buffer.Buffer; </script>
   <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 2em; }
