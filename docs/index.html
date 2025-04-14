@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <title>Solana dApp – Initialize Dapp and Mint</title>
-  <!-- Include Buffer polyfill so Buffer.from() works in browsers -->
-  <script src="https://unpkg.com/buffer-polyfill@6.0.3/dist/buffer.umd.cjs"></script>
+  <!-- Include Buffer polyfill so Buffer.from works -->
+  <script src="https://unpkg.com/buffer-polyfill@6.0.3/dist/buffer.umd.js"></script>
   <!-- Include Solana web3.js via CDN -->
   <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
   <style>
@@ -21,13 +21,12 @@
   
   <hr>
   
-  <!-- Initialize Dapp and Mint Section -->
+  <!-- Initialize Dapp Section -->
   <h2>Initialize Dapp and Mint</h2>
   <p>
-    This function will attempt to create the global dapp config, set the token mint,
-    create a mint authority PDA, and (optionally) pre-mint commission tokens.  
-    <br>
-    (Discriminator: <code>eb1eb394b9a87d4b</code>)
+    This function will attempt to create the global dapp configuration, set the token mint,
+    create a mint authority PDA, and pre-mint commission tokens.
+    <br>(Discriminator: eb1eb394b9a87d4b)
   </p>
   <input type="number" id="initAmount" placeholder="Initial Commission Tokens (μtokens)" />
   <button id="initDapp" disabled>Initialize Dapp and Mint</button>
@@ -35,7 +34,7 @@
   
   <script>
     // --- CONFIGURATION CONSTANTS ---
-    // Use your deployed program's ID:
+    // Your deployed program ID.
     const PROGRAM_ID = new solanaWeb3.PublicKey("Ut7RHuZp1PKQ581aa2TpJ39UYgs6vBna6v67RvpS9Ys");
     // Replace this with your token mint address if you have one, or leave as is.
     // (Since we are creating a new mint via a PDA, this will be derived from the seed "my_spl_mint".)
@@ -48,37 +47,35 @@
     const TOKEN_2022_PROGRAM_ID = new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
     const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 
-    // Discriminator for initialize_dapp_and_mint is provided as hex: eb1eb394b9a87d4b
+    // Discriminator for initialize_dapp_and_mint, computed from SHA256("global:initialize_dapp_and_mint")
+    // as the first 8 bytes. (Hex: eb1eb394b9a87d4b)
     const DISCRIMINATOR_INIT = Uint8Array.from([0xeb, 0x1e, 0xb3, 0x94, 0xb9, 0xa8, 0x7d, 0x4b]);
-
+    
     // --- HELPER FUNCTIONS ---
-
-    // Converts a number (BigInt or number) into an 8-byte little-endian Uint8Array.
+    // Convert a number to an 8-byte little-endian Uint8Array.
     function u64ToBytes(num) {
       const buffer = new ArrayBuffer(8);
       new DataView(buffer).setBigUint64(0, BigInt(num), true);
       return new Uint8Array(buffer);
     }
-
-    // Returns the PDA given seeds and the program ID.
+    
+    // Returns a PDA given seeds and program id.
     function getPDA(seeds, programId) {
       return solanaWeb3.PublicKey.findProgramAddressSync(seeds, programId);
     }
-
-    // Derive the associated token account address.
-    function findATA(walletAddress, mintAddress) {
-      return solanaWeb3.PublicKey.findProgramAddressSync(
-        [
-          walletAddress.toBytes(),
-          TOKEN_2022_PROGRAM_ID.toBytes(),
-          mintAddress.toBytes()
-        ],
+    
+    // Derive the associated token account (ATA) address.
+    function findATA(walletPubkey, mintPubkey) {
+      const [ata] = solanaWeb3.PublicKey.findProgramAddressSync(
+        [walletPubkey.toBytes(), TOKEN_2022_PROGRAM_ID.toBytes(), mintPubkey.toBytes()],
         ASSOCIATED_TOKEN_PROGRAM_ID
-      )[0];
+      );
+      return ata;
     }
-
+    
     // --- GLOBAL VARIABLES ---
     let wallet, connection;
+    // PDAs to be computed after wallet connection.
     let mintForDappPda, dappConfigPda, mintAuthorityPda;
     
     // --- UI ELEMENTS ---
@@ -95,45 +92,54 @@
         await wallet.connect({ onlyIfTrusted: false });
         output.textContent = `Connected: ${wallet.publicKey.toString()}`;
         connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl("devnet"), "confirmed");
-
-        // Derive the mint_for_dapp PDA using seed ["my_spl_mint", walletPublicKey].
+  
+        // Derive mint_for_dapp PDA using seed ["my_spl_mint", wallet.publicKey]
         [mintForDappPda] = getPDA([Buffer.from("my_spl_mint"), wallet.publicKey.toBuffer()], PROGRAM_ID);
-
-        // Derive the global dapp_config PDA using seed ["dapp", mint_for_dapp key].
+  
+        // Derive dapp_config PDA using seed ["dapp", mint_for_dapp PDA]
         [dappConfigPda] = getPDA([Buffer.from("dapp"), mintForDappPda.toBuffer()], PROGRAM_ID);
-
-        // Derive the mint_authority PDA using seed ["mint_authority"].
+  
+        // Derive mint_authority PDA using seed ["mint_authority"]
         [mintAuthorityPda] = getPDA([Buffer.from("mint_authority")], PROGRAM_ID);
-
-        console.log("PDAs:");
+  
+        console.log("PDAs computed:");
         console.log("mintForDappPda:", mintForDappPda.toBase58());
         console.log("dappConfigPda:", dappConfigPda.toBase58());
         console.log("mintAuthorityPda:", mintAuthorityPda.toBase58());
-
-        // Enable the initialize dapp button.
+  
         initBtn.disabled = false;
       } catch (err) {
         console.error(err);
         output.textContent = `Error: ${err.message}`;
       }
     });
-
+    
     // --- INITIALIZE DAPP AND MINT ---
     initBtn.addEventListener("click", async () => {
       try {
         const initialCommissionTokens = BigInt(initAmountInput.value);
-        if (initialCommissionTokens <= 0n) throw new Error("Enter a valid commission mint amount.");
-
-        // Build instruction data = discriminator || initial_commission_tokens (8 bytes LE)
+        if (initialCommissionTokens <= 0n)
+          throw new Error("Enter a valid commission token amount.");
+  
+        // Build instruction data: discriminator || initial_commission_tokens (8-byte little-endian)
         const commissionBytes = u64ToBytes(initialCommissionTokens);
         const instructionData = new Uint8Array(DISCRIMINATOR_INIT.length + commissionBytes.length);
         instructionData.set(DISCRIMINATOR_INIT, 0);
         instructionData.set(commissionBytes, DISCRIMINATOR_INIT.length);
-
-        // Derive the commission ATA for the mint_for_dapp PDA and wallet.
+  
+        // Derive commission ATA for the mint_for_dapp PDA and wallet.
         const commissionAta = findATA(wallet.publicKey, mintForDappPda);
-
-        // Assemble account keys in the order expected by the InitializeDappAndMint context.
+  
+        // Assemble account keys in the order required by InitializeDappAndMint:
+        // 1. dapp_config PDA
+        // 2. mint_authority PDA
+        // 3. mint_for_dapp PDA
+        // 4. wallet (user)
+        // 5. commission_ata ATA
+        // 6. token_program (TOKEN_2022_PROGRAM_ID)
+        // 7. associated_token_program (ASSOCIATED_TOKEN_PROGRAM_ID)
+        // 8. system_program
+        // 9. rent
         const keys = [
           { pubkey: dappConfigPda, isSigner: false, isWritable: true },
           { pubkey: mintAuthorityPda, isSigner: false, isWritable: true },
@@ -141,11 +147,11 @@
           { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
           { pubkey: commissionAta, isSigner: false, isWritable: true },
           { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+          { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
           { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
           { pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
-          { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
         ];
-
+  
         const tx = new solanaWeb3.Transaction().add(
           new solanaWeb3.TransactionInstruction({
             programId: PROGRAM_ID,
@@ -153,12 +159,12 @@
             data: instructionData,
           })
         );
-
+  
         tx.feePayer = wallet.publicKey;
         tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-
-        // In this instruction, the mint account is created as a PDA,
-        // so we do not sign for it (only the wallet signs).
+  
+        // Since mint_for_dapp is a PDA, we don't sign for it.
+        // Only the wallet signs.
         const signedTx = await wallet.signAndSendTransaction(tx);
         initOutput.textContent = `Transaction sent: ${signedTx.signature}`;
       } catch (err) {
