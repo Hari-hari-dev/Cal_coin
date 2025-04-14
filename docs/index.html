@@ -14,65 +14,74 @@
 </head>
 <body>
   <h1>Solana dApp – Initialize Dapp and Mint</h1>
-  
-  <!-- Wallet Connection Section -->
+
+  <!-- Wallet Connection -->
   <button id="connect">Connect Phantom</button>
   <p id="output">Not connected</p>
-  
+
   <hr>
-  
+
   <!-- Initialize Dapp Section -->
   <h2>Initialize Dapp and Mint</h2>
   <p>
     This function will attempt to create the global dapp configuration, set the token mint,
-    create a mint authority PDA, and pre-mint commission tokens.
+    create a mint authority PDA, and pre‑mint commission tokens.
     <br>(Discriminator: eb1eb394b9a87d4b)
   </p>
   <input type="number" id="initAmount" placeholder="Initial Commission Tokens (μtokens)" />
   <button id="initDapp" disabled>Initialize Dapp and Mint</button>
   <p id="initOutput">Dapp not initialized.</p>
-  
+
   <script>
-    // --- CONFIGURATION CONSTANTS ---
+    // === CONFIGURATION CONSTANTS ===
+    // Your deployed program ID (copy verbatim)
     const PROGRAM_ID = new solanaWeb3.PublicKey("Ut7RHuZp1PKQ581aa2TpJ39UYgs6vBna6v67RvpS9Ys");
-    // The program creates a new mint as a PDA.
+    // For this instruction, the mint_for_dapp is created as a PDA—so no external TOKEN_MINT is needed.
+    // The following are the known addresses for token_2022 and the associated token program.
     const TOKEN_2022_PROGRAM_ID = new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
     const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
-  
-    // Discriminator for initialize_dapp_and_mint (hex: eb1eb394b9a87d4b)
+
+    // Discriminator for initialize_dapp_and_mint, copied verbatim:
     const DISCRIMINATOR_INIT = Uint8Array.from([0xeb, 0x1e, 0xb3, 0x94, 0xb9, 0xa8, 0x7d, 0x4b]);
-  
-    // --- HELPER FUNCTIONS ---
+    
+    // === HELPER FUNCTIONS ===
+    // Convert a number to an 8-byte little-endian Uint8Array.
     function u64ToBytes(num) {
       const buffer = new ArrayBuffer(8);
       new DataView(buffer).setBigUint64(0, BigInt(num), true);
       return new Uint8Array(buffer);
     }
     
+    // Returns a PDA given seeds and a program ID.
     function getPDA(seeds, programId) {
       return solanaWeb3.PublicKey.findProgramAddressSync(seeds, programId);
     }
     
+    // Derive the associated token account (ATA) using standard seeds.
     function findATA(walletPubkey, mintPubkey) {
       const [ata] = solanaWeb3.PublicKey.findProgramAddressSync(
-        [walletPubkey.toBytes(), TOKEN_2022_PROGRAM_ID.toBytes(), mintPubkey.toBytes()],
+        [
+          walletPubkey.toBytes(),
+          TOKEN_2022_PROGRAM_ID.toBytes(),
+          mintPubkey.toBytes(),
+        ],
         ASSOCIATED_TOKEN_PROGRAM_ID
       );
       return ata;
     }
-  
-    // --- GLOBAL VARIABLES ---
+    
+    // === GLOBAL VARIABLES ===
     let wallet, connection;
     let mintForDappPda, dappConfigPda, mintAuthorityPda;
-  
-    // --- UI ELEMENTS ---
+    
+    // === UI ELEMENTS ===
     const connectBtn = document.getElementById("connect");
     const outputEl = document.getElementById("output");
     const initBtn = document.getElementById("initDapp");
     const initAmountInput = document.getElementById("initAmount");
     const initOutput = document.getElementById("initOutput");
-  
-    // --- CONNECT WALLET ---
+    
+    // === CONNECT WALLET ===
     connectBtn.addEventListener("click", async () => {
       try {
         wallet = window.solana;
@@ -82,9 +91,11 @@
   
         // Derive mint_for_dapp PDA using seeds: ["my_spl_mint", wallet.publicKey]
         [mintForDappPda] = getPDA([Buffer.from("my_spl_mint"), wallet.publicKey.toBuffer()], PROGRAM_ID);
-        // Derive dapp_config PDA using seeds: ["dapp", mint_for_dapp PDA]
+  
+        // Derive dapp_config PDA using seeds: ["dapp", mint_for_dappPda]
         [dappConfigPda] = getPDA([Buffer.from("dapp"), mintForDappPda.toBuffer()], PROGRAM_ID);
-        // Derive mint_authority PDA using seeds: ["mint_authority"]
+  
+        // Derive mint_authority PDA using seed: ["mint_authority"]
         [mintAuthorityPda] = getPDA([Buffer.from("mint_authority")], PROGRAM_ID);
   
         console.log("PDAs computed:");
@@ -98,15 +109,15 @@
         outputEl.textContent = `Error: ${err.message}`;
       }
     });
-  
-    // --- INITIALIZE DAPP AND MINT ---
+    
+    // === INITIALIZE DAPP AND MINT ===
     initBtn.addEventListener("click", async () => {
       try {
         const initialCommissionTokens = BigInt(initAmountInput.value);
         if (initialCommissionTokens <= 0n)
           throw new Error("Enter a valid commission token amount.");
   
-        // Build instruction data: discriminator || initial_commission_tokens (8-byte LE)
+        // Build instruction data: discriminator || initial_commission_tokens (8-byte little-endian)
         const commissionBytes = u64ToBytes(initialCommissionTokens);
         const instructionData = new Uint8Array(DISCRIMINATOR_INIT.length + commissionBytes.length);
         instructionData.set(DISCRIMINATOR_INIT, 0);
@@ -115,19 +126,20 @@
         // Derive commission ATA for the mint_for_dapp PDA and wallet.
         const commissionAta = findATA(wallet.publicKey, mintForDappPda);
   
-        // Assemble account keys in the order required by InitializeDappAndMint:
+        // Assemble account keys in the exact order required by InitializeDappAndMint:
         const keys = [
-          { pubkey: dappConfigPda, isSigner: false, isWritable: true },
-          { pubkey: mintAuthorityPda, isSigner: false, isWritable: true },
-          { pubkey: mintForDappPda, isSigner: false, isWritable: true },
-          { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
-          { pubkey: commissionAta, isSigner: false, isWritable: true },
-          { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
-          { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-          { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
-          { pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+          { pubkey: dappConfigPda,       isSigner: false, isWritable: true },  // dapp_config PDA
+          { pubkey: mintAuthorityPda,    isSigner: false, isWritable: true },  // mint_authority PDA
+          { pubkey: mintForDappPda,      isSigner: false, isWritable: true },  // mint_for_dapp PDA
+          { pubkey: wallet.publicKey,    isSigner: true,  isWritable: true },  // User wallet (signer)
+          { pubkey: commissionAta,       isSigner: false, isWritable: true },  // Commission ATA
+          { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false }, // Token program
+          { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }, // ATA program
+          { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false }, // System program
+          { pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false }         // Rent sysvar
         ];
   
+        // Create transaction instruction.
         const tx = new solanaWeb3.Transaction().add(
           new solanaWeb3.TransactionInstruction({
             programId: PROGRAM_ID,
@@ -141,27 +153,23 @@
         tx.recentBlockhash = blockhash;
         tx.lastValidBlockHeight = lastValidBlockHeight;
   
-        // Force the transaction to compile its message.
+        // Compile the transaction message
         tx.compileMessage();
   
-        // Sign the transaction using Phantom.
+        // Sign the transaction with Phantom.
         const signedTx = await wallet.signTransaction(tx);
   
-        // --- Simulation Debugging ---
-        try {
-          const simResult = await connection.simulateTransaction(signedTx);
-          if (simResult.value.err) {
-            console.error("Simulation failed:", simResult.value.err);
-            if (simResult.value.logs) {
-              console.error("Simulation logs:", simResult.value.logs);
-            }
-            throw new Error("Transaction simulation failed");
+        // Simulate the transaction for debugging.
+        const simResult = await connection.simulateTransaction(signedTx);
+        if (simResult.value.err) {
+          console.error("Simulation failed:", simResult.value.err);
+          if (simResult.value.logs) {
+            console.error("Simulation logs:", simResult.value.logs);
           }
-        } catch (simErr) {
-          console.warn("Simulation error, proceeding to send with skipPreflight: true", simErr);
+          throw new Error("Transaction simulation failed");
         }
   
-        // Submit the transaction.
+        // Send the signed transaction.
         const txid = await connection.sendRawTransaction(signedTx.serialize(), { skipPreflight: true });
         await connection.confirmTransaction(txid, "confirmed");
         initOutput.textContent = `Transaction sent: ${txid}`;
