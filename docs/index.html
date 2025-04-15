@@ -5,12 +5,11 @@
   <title>Solana dApp – Initialize Dapp and Mint</title>
   <!-- Our custom bundle (if any) can go here -->
   <!-- Buffer polyfill (if needed) -->
-<!-- Load the IIFE (UMD) version of Solana web3.js -->
+  <script src="https://unpkg.com/buffer-polyfill@6.0.3/dist/buffer.umd.cjs"></script>
+  <!-- Load the IIFE (UMD) version of Solana web3.js -->
   <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
   <!-- Load the IIFE (UMD) version of Anchor v0.31.0 from the new package -->
   <script src="./bundle.js"></script>
-  <script src="https://unpkg.com/buffer-polyfill@6.0.3/dist/buffer.umd.js"></script>
-  
   <style>
     body { font-family: Arial, sans-serif; margin: 2em; }
     button, input { margin: 0.5em 0; padding: 0.5em; }
