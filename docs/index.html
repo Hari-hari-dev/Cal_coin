@@ -3,46 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <title>Solana dApp – Initialize Dapp and Mint</title>
-  <!-- Provide an import map so that "buffer" is resolved to an ESM version -->
-  <script type="importmap">
-    {
-      "imports": {
-        "buffer": "https://jspm.dev/buffer",
-        "@solana/web3.js": "https://unpkg.com/@solana/web3.js@1.98.0/lib/index.esm.js",
-        "solana/web3.js": "https://unpkg.com/@solana/web3.js@1.98.0/lib/index.esm.js",
-        "bn.js": "https://jspm.dev/bn.js",
-        "bs58": "https://jspm.dev/bs58",
-        "base64-js": "https://jspm.dev/base64-js",
-        "assert": "https://esm.sh/assert", 
-        "util": "https://esm.sh/util",      
-        "process": "https://jspm.dev/process",
-        "stream": "https://jspm.dev/stream-browserify",
-        "os": "https://jspm.dev/os-browserify",
-        "crypto": "https://jspm.dev/crypto-browserify",
-        "camelcase": "https://jspm.dev/camelcase",
-        "js-sha256": "https://jspm.dev/js-sha256",
-        "@coral-xyz/borsh": "https://jspm.dev/@coral-xyz/borsh",
-        "pako": "https://jspm.dev/pako",
-        "eventemitter3": "https://jspm.dev/eventemitter3",
-        "@noble/curves/ed25519": "https://esm.sh/@noble/curves/ed25519",
-        "@noble/hashes/sha256": "https://esm.sh/@noble/hashes/sha256",
-        "borsh": "https://esm.sh/borsh@0.7.0",
-        "@solana/buffer-layout": "https://esm.sh/@solana/buffer-layout",
-        "bigint-buffer": "https://esm.sh/bigint-buffer",
-        "http": "https://esm.sh/http-browserify",
-        "https": "./https-polyfill.js",
-        "superstruct": "https://esm.sh/superstruct",
-        "jayson/lib/client/browser": "https://esm.sh/jayson@3.2.2/lib/client/browser",
-        "node-fetch": "https://esm.sh/node-fetch",
-        "rpc-websockets": "https://esm.sh/rpc-websockets",
-        "@noble/hashes/sha3": "https://esm.sh/@noble/hashes/sha3",
-        "@noble/curves/secp256k1": "https://esm.sh/@noble/curves/secp256k1"
-
-      }
-    }
-    </script>
-  <!-- Include Solana web3.js via CDN -->
+  <!-- Buffer polyfill (if needed) -->
+  <script src="https://unpkg.com/buffer-polyfill@6.0.3/dist/buffer.umd.cjs"></script>
+  <!-- Load the IIFE (UMD) version of Solana web3.js -->
   <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
+  <!-- Load the IIFE (UMD) version of Anchor (project-serum/anchor) -->
+  <script src="https://unpkg.com/@project-serum/anchor@0.26.0/dist/browser/index.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 2em; }
     button, input { margin: 0.5em 0; padding: 0.5em; }
@@ -51,39 +17,36 @@
 <body>
   <h1>Solana dApp – Initialize Dapp and Mint</h1>
   
-  <!-- Wallet Connection Section -->
+  <!-- Wallet connection UI -->
   <button id="connect">Connect Phantom</button>
   <p id="output">Not connected</p>
   
   <hr>
   
-  <!-- Initialize Dapp Section -->
+  <!-- Dapp Initialization UI -->
   <h2>Initialize Dapp and Mint</h2>
   <p>
-    This function will attempt to create the global dapp configuration, set the token mint,
-    create a mint authority PDA, and pre‑mint commission tokens.
-    <br>(Instruction: <strong>initialize_dapp_and_mint</strong> – discriminator <code>eb1eb394b9a87d4b</code>)
+    This transaction sets up the global dapp configuration by storing the mint address,
+    setting the owner, the gatekeeper network, the mint authority bump, and optionally pre‑minting commission tokens.
+    <br>(Instruction: <code>initialize_dapp_and_mint</code> – discriminator <code>eb1eb394b9a87d4b</code>)
   </p>
   <input type="number" id="initAmount" placeholder="Initial Commission Tokens (μtokens)" />
   <button id="initDapp" disabled>Initialize Dapp and Mint</button>
   <p id="initOutput">Dapp not initialized.</p>
   
-  <!-- Main Script as an ES module -->
-  <script type="module">
-    // Import the Anchor library from the CDN.
-    import * as anchor from "https://unpkg.com/@project-serum/anchor@0.26.0/dist/browser/index.js";
-
+  <!-- Main Script -->
+  <script>
+    // Use the global variables provided by the IIFE bundles:
+    // solanaWeb3 from @solana/web3.js, anchor from @project-serum/anchor
+    // (Both are attached to the window object.)
+    
     // --- CONFIGURATION CONSTANTS ---
-    // Your deployed program's public key:
-    const PROGRAM_ID = new solanaWeb3.PublicKey("Ut7RHuZp1PKQ581aa2TpJ39UYgs6vBna6v67RvpS9Ys");
-    // Known program IDs for token_2022 and associated token program.
-    const TOKEN_2022_PROGRAM_ID = new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
-    const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+    var PROGRAM_ID = new solanaWeb3.PublicKey("Ut7RHuZp1PKQ581aa2TpJ39UYgs6vBna6v67RvpS9Ys");
+    var TOKEN_2022_PROGRAM_ID = new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
+    var ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 
-    // --- IDL for the Anchor Program ---
-    // (This inline IDL is a simplified example.
-    //  Adjust the instructions/accounts as needed to match your lib.rs.)
-    const idl = {
+    // A simplified inline IDL matching your lib.rs
+    var idl = {
       "version": "0.0.0",
       "name": "cal_coin",
       "instructions": [
@@ -104,7 +67,6 @@
             { "name": "initialCommissionTokens", "type": "u64" }
           ]
         }
-        // You can add other instructions (e.g. registerUser, claim, setExempt) similarly.
       ],
       "metadata": {
         "address": "Ut7RHuZp1PKQ581aa2TpJ39UYgs6vBna6v67RvpS9Ys"
@@ -112,14 +74,13 @@
     };
 
     // --- HELPER FUNCTIONS ---
-    // Returns a PDA given seeds and a program ID.
+    // Compute a PDA (program derived address) given seeds and a program ID.
     function getPDA(seeds, programId) {
       return solanaWeb3.PublicKey.findProgramAddressSync(seeds, programId);
     }
-    
-    // Derive the associated token account (ATA) address.
+    // Compute the associated token account address for a wallet and a mint.
     function findATA(walletPubkey, mintPubkey) {
-      const [ata] = solanaWeb3.PublicKey.findProgramAddressSync(
+      var ataPair = solanaWeb3.PublicKey.findProgramAddressSync(
         [
           walletPubkey.toBytes(),
           TOKEN_2022_PROGRAM_ID.toBytes(),
@@ -127,66 +88,65 @@
         ],
         ASSOCIATED_TOKEN_PROGRAM_ID
       );
-      return ata;
+      return ataPair[0];
     }
-    
+
     // --- GLOBAL VARIABLES ---
-    let wallet, connection, provider, program;
-    // PDAs computed after wallet connection.
-    let mintForDappPda, dappConfigPda, mintAuthorityPda;
-    
+    var wallet, connection, provider, program;
+    var mintForDappPda, dappConfigPda, mintAuthorityPda;
+
     // --- UI ELEMENTS ---
-    const connectBtn = document.getElementById("connect");
-    const outputEl = document.getElementById("output");
-    const initBtn = document.getElementById("initDapp");
-    const initAmountInput = document.getElementById("initAmount");
-    const initOutput = document.getElementById("initOutput");
-    
+    var connectBtn = document.getElementById("connect");
+    var outputEl = document.getElementById("output");
+    var initBtn = document.getElementById("initDapp");
+    var initAmountInput = document.getElementById("initAmount");
+    var initOutput = document.getElementById("initOutput");
+
     // --- CONNECT WALLET ---
-    connectBtn.addEventListener("click", async () => {
+    connectBtn.addEventListener("click", async function () {
       try {
+        // Phantom injects window.solana
         wallet = window.solana;
         await wallet.connect({ onlyIfTrusted: false });
-        outputEl.textContent = `Connected: ${wallet.publicKey.toString()}`;
+        outputEl.textContent = "Connected: " + wallet.publicKey.toString();
+
+        // Establish connection to the devnet.
         connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl("devnet"), "confirmed");
-        
-        // Create Anchor provider with the connected wallet and connection.
+
+        // Create an Anchor provider from connection and wallet.
         provider = new anchor.AnchorProvider(connection, wallet, {});
         anchor.setProvider(provider);
-  
-        // Compute PDAs (using the same seeds as in your program)
-        [mintForDappPda] = getPDA([Buffer.from("my_spl_mint"), wallet.publicKey.toBuffer()], PROGRAM_ID);
-        [dappConfigPda] = getPDA([Buffer.from("dapp"), mintForDappPda.toBuffer()], PROGRAM_ID);
-        [mintAuthorityPda] = getPDA([Buffer.from("mint_authority")], PROGRAM_ID);
-  
-        console.log("PDAs computed:");
+
+        // Compute PDAs using the same seeds as in your program.
+        mintForDappPda = getPDA([Buffer.from("my_spl_mint"), wallet.publicKey.toBuffer()], PROGRAM_ID)[0];
+        dappConfigPda = getPDA([Buffer.from("dapp"), mintForDappPda.toBuffer()], PROGRAM_ID)[0];
+        mintAuthorityPda = getPDA([Buffer.from("mint_authority")], PROGRAM_ID)[0];
+
         console.log("mintForDappPda:", mintForDappPda.toBase58());
         console.log("dappConfigPda:", dappConfigPda.toBase58());
         console.log("mintAuthorityPda:", mintAuthorityPda.toBase58());
-  
-        // Instantiate the Anchor Program.
+
+        // Instantiate the program client using the IDL.
         program = new anchor.Program(idl, PROGRAM_ID, provider);
         initBtn.disabled = false;
       } catch (err) {
         console.error(err);
-        outputEl.textContent = `Error: ${err.message}`;
+        outputEl.textContent = "Error: " + err.message;
       }
     });
-    
-    // --- INITIALIZE DAPP AND MINT using Anchor (with discriminators) ---
-    initBtn.addEventListener("click", async () => {
+
+    // --- INITIALIZE DAPP AND MINT TRANSACTION ---
+    initBtn.addEventListener("click", async function () {
       try {
-        const initialCommissionTokens = BigInt(initAmountInput.value);
-        if (initialCommissionTokens <= 0n)
-          throw new Error("Enter a valid commission token amount.");
-  
-        // Derive commission ATA for the mint_for_dapp PDA and wallet.
-        const commissionAta = findATA(wallet.publicKey, mintForDappPda);
-  
-        // When calling the method below, Anchor automatically prepends the discriminator.
-        // For initialize_dapp_and_mint, that means the first 8 bytes are "eb1eb394b9a87d4b".
-        const txid = await program.methods
-          .initializeDappAndMint(new anchor.BN(initialCommissionTokens))
+        var initAmt = BigInt(initAmountInput.value);
+        if (initAmt <= 0n) throw new Error("Enter a valid commission token amount.");
+
+        // Derive the commission ATA using the wallet public key and the mintForDapp PDA.
+        var commissionAta = findATA(wallet.publicKey, mintForDappPda);
+
+        // Call the initialize_dapp_and_mint instruction.
+        // Anchor’s client automatically adds the 8-byte discriminator.
+        var txid = await program.methods.initializeDappAndMint(new anchor.BN(initAmt))
           .accounts({
             dappConfig: dappConfigPda,
             mintAuthority: mintAuthorityPda,
@@ -199,11 +159,11 @@
             rent: solanaWeb3.SYSVAR_RENT_PUBKEY
           })
           .rpc();
-  
-        initOutput.textContent = `Transaction sent: ${txid}`;
+
+        initOutput.textContent = "Transaction sent: " + txid;
       } catch (err) {
         console.error("Initialize Dapp error:", err);
-        initOutput.textContent = `Error initializing dapp: ${err.message}`;
+        initOutput.textContent = "Error initializing dapp: " + err.message;
       }
     });
   </script>
