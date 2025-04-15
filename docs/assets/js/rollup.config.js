@@ -1,6 +1,8 @@
 import commonjs from '@rollup/plugin-commonjs';
 import resolve from '@rollup/plugin-node-resolve';
 import json from '@rollup/plugin-json';
+//import { terser } from "@rollup/plugin-terser";
+
 //import polyfillNode from 'rollup-plugin-polyfill-node';
 
 export default {
@@ -23,6 +25,7 @@ export default {
             browser: true,
             preferBuiltins: false // Forces use of polyfilled modules in browsers
         }),
-        json()
+        json(),
+        //terser()
     ]
 };
