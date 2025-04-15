@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <title>Solana dApp – Initialize Dapp and Mint</title>
-  <script src="./bundle.js"></script>
+  <!-- Our custom bundle (if any) can go here -->
   <!-- Buffer polyfill (if needed) -->
-  <script src="https://unpkg.com/buffer-polyfill@6.0.3/dist/buffer.umd.cjs"></script>
+  <script src="https://unpkg.com/buffer-polyfill@6.0.3/dist/buffer.umd.js"></script>
   <!-- Load the IIFE (UMD) version of Solana web3.js -->
   <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
-  <!-- Load the IIFE (UMD) version of Anchor (project-serum/anchor) -->
-  <script src="https://unpkg.com/@project-serum/anchor@0.26.0/dist/browser/index.js"></script>
+  <!-- Load the IIFE (UMD) version of Anchor v0.31.0 from the new package -->
+  <script src="./bundle.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 2em; }
     button, input { margin: 0.5em 0; padding: 0.5em; }
@@ -37,16 +37,18 @@
   
   <!-- Main Script -->
   <script>
-    // Use the global variables provided by the IIFE bundles:
-    // solanaWeb3 from @solana/web3.js, anchor from @project-serum/anchor
-    // (Both are attached to the window object.)
+    // The IIFE bundles provide global objects:
+    // solanaWeb3 from @solana/web3.js, and anchor from @coral-xyz/anchor.
     
-    // --- CONFIGURATION CONSTANTS ---
-    var PROGRAM_ID = new solanaWeb3.PublicKey("Ut7RHuZp1PKQ581aa2TpJ39UYgs6vBna6v67RvpS9Ys");
+    // === CONFIGURATION CONSTANTS ===
+    // Program deployed on Solana (via Anchor CLI or similar)
+    var PROGRAM_ID = new solanaWeb3.PublicKey("5XY37e3GSKT4P6PWmeWqL8V3MQNkTT7EAUP45f8uJV6X");
+    // Known program IDs for Token 2022 and the associated token program.
     var TOKEN_2022_PROGRAM_ID = new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
     var ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 
-    // A simplified inline IDL matching your lib.rs
+    // === IDL for the Program ===
+    // This simplified IDL should match your lib.rs.
     var idl = {
       "version": "0.0.0",
       "name": "cal_coin",
@@ -70,16 +72,16 @@
         }
       ],
       "metadata": {
-        "address": "Ut7RHuZp1PKQ581aa2TpJ39UYgs6vBna6v67RvpS9Ys"
+        "address": "5XY37e3GSKT4P6PWmeWqL8V3MQNkTT7EAUP45f8uJV6X"
       }
     };
 
-    // --- HELPER FUNCTIONS ---
-    // Compute a PDA (program derived address) given seeds and a program ID.
+    // === HELPER FUNCTIONS ===
+    // Compute PDA (program derived addresses)
     function getPDA(seeds, programId) {
       return solanaWeb3.PublicKey.findProgramAddressSync(seeds, programId);
     }
-    // Compute the associated token account address for a wallet and a mint.
+    // Compute the Associated Token Account (ATA) address.
     function findATA(walletPubkey, mintPubkey) {
       var ataPair = solanaWeb3.PublicKey.findProgramAddressSync(
         [
@@ -92,33 +94,33 @@
       return ataPair[0];
     }
 
-    // --- GLOBAL VARIABLES ---
+    // === GLOBAL VARIABLES ===
     var wallet, connection, provider, program;
     var mintForDappPda, dappConfigPda, mintAuthorityPda;
 
-    // --- UI ELEMENTS ---
+    // === UI ELEMENTS ===
     var connectBtn = document.getElementById("connect");
     var outputEl = document.getElementById("output");
     var initBtn = document.getElementById("initDapp");
     var initAmountInput = document.getElementById("initAmount");
     var initOutput = document.getElementById("initOutput");
 
-    // --- CONNECT WALLET ---
+    // === CONNECT WALLET ===
     connectBtn.addEventListener("click", async function () {
       try {
-        // Phantom injects window.solana
+        // Phantom wallet injected as window.solana
         wallet = window.solana;
         await wallet.connect({ onlyIfTrusted: false });
         outputEl.textContent = "Connected: " + wallet.publicKey.toString();
 
-        // Establish connection to the devnet.
+        // Set up connection to Devnet.
         connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl("devnet"), "confirmed");
 
-        // Create an Anchor provider from connection and wallet.
+        // Create an Anchor provider using connection and wallet.
         provider = new anchor.AnchorProvider(connection, wallet, {});
-        anchor.setProvider(provider);
+        // In Anchor 0.31.0, no need to call anchor.setProvider(provider);
 
-        // Compute PDAs using the same seeds as in your program.
+        // Compute PDAs using seeds as in the program.
         mintForDappPda = getPDA([Buffer.from("my_spl_mint"), wallet.publicKey.toBuffer()], PROGRAM_ID)[0];
         dappConfigPda = getPDA([Buffer.from("dapp"), mintForDappPda.toBuffer()], PROGRAM_ID)[0];
         mintAuthorityPda = getPDA([Buffer.from("mint_authority")], PROGRAM_ID)[0];
@@ -127,7 +129,7 @@
         console.log("dappConfigPda:", dappConfigPda.toBase58());
         console.log("mintAuthorityPda:", mintAuthorityPda.toBase58());
 
-        // Instantiate the program client using the IDL.
+        // Instantiate the program client by passing the provider directly.
         program = new anchor.Program(idl, PROGRAM_ID, provider);
         initBtn.disabled = false;
       } catch (err) {
@@ -136,17 +138,16 @@
       }
     });
 
-    // --- INITIALIZE DAPP AND MINT TRANSACTION ---
+    // === INITIALIZE DAPP AND MINT TRANSACTION ===
     initBtn.addEventListener("click", async function () {
       try {
         var initAmt = BigInt(initAmountInput.value);
         if (initAmt <= 0n) throw new Error("Enter a valid commission token amount.");
 
-        // Derive the commission ATA using the wallet public key and the mintForDapp PDA.
+        // Derive the commission ATA.
         var commissionAta = findATA(wallet.publicKey, mintForDappPda);
 
-        // Call the initialize_dapp_and_mint instruction.
-        // Anchor’s client automatically adds the 8-byte discriminator.
+        // Call the program's initialize_dapp_and_mint instruction using Anchor.
         var txid = await program.methods.initializeDappAndMint(new anchor.BN(initAmt))
           .accounts({
             dappConfig: dappConfigPda,
