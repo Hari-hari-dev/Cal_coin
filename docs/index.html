@@ -2,172 +2,157 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Solana dApp – Initialize Dapp and Mint</title>
-  <!-- Our custom bundle (if any) can go here -->
-  <!-- Buffer polyfill (if needed) -->
-  <script src="https://unpkg.com/buffer-polyfill@6.0.3/dist/buffer.umd.cjs"></script>
-  <!-- Load the IIFE (UMD) version of Solana web3.js -->
-  <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
-  <!-- Load the IIFE (UMD) version of Anchor v0.31.0 from the new package -->
-  <script src="./bundle.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 2em; }
-    button, input { margin: 0.5em 0; padding: 0.5em; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CalCoin DApp (Devnet)</title>
 </head>
 <body>
-  <h1>Solana dApp – Initialize Dapp and Mint</h1>
-  
-  <!-- Wallet connection UI -->
-  <button id="connect">Connect Phantom</button>
-  <p id="output">Not connected</p>
-  
-  <hr>
-  
-  <!-- Dapp Initialization UI -->
-  <h2>Initialize Dapp and Mint</h2>
-  <p>
-    This transaction sets up the global dapp configuration by storing the mint address,
-    setting the owner, the gatekeeper network, the mint authority bump, and optionally pre‑minting commission tokens.
-    <br>(Instruction: <code>initialize_dapp_and_mint</code> – discriminator <code>eb1eb394b9a87d4b</code>)
-  </p>
-  <input type="number" id="initAmount" placeholder="Initial Commission Tokens (μtokens)" />
-  <button id="initDapp" disabled>Initialize Dapp and Mint</button>
-  <p id="initOutput">Dapp not initialized.</p>
-  
-  <!-- Main Script -->
+  <h1>CalCoin DApp</h1>
+  <button id="connect-btn">Connect Phantom Wallet</button>
+  <button id="register-btn" disabled>Register User</button>
+  <button id="claim-btn" disabled>Claim Tokens</button>
+
+  <!-- Solana Web3.js SDK -->
+  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.js"></script>
   <script>
-    // The IIFE bundles provide global objects:
-    // solanaWeb3 from @solana/web3.js, and anchor from @coral-xyz/anchor.
-    
-    // === CONFIGURATION CONSTANTS ===
-    // Program deployed on Solana (via Anchor CLI or similar)
-    var PROGRAM_ID = new solanaWeb3.PublicKey("5XY37e3GSKT4P6PWmeWqL8V3MQNkTT7EAUP45f8uJV6X");
-    // Known program IDs for Token 2022 and the associated token program.
-    var TOKEN_2022_PROGRAM_ID = new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
-    var ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+    (async () => {
+      // Detect Phantom provider
+      const provider = window.phantom?.solana;
+      if (!provider?.isPhantom) {
+        alert('Phantom Wallet not found. Please install Phantom to continue.');
+        return;
+      }
+      
+      // Connect to Phantom
+      let userPubkey;
+      document.getElementById('connect-btn').onclick = async () => {
+        try {
+          const resp = await provider.connect();  // ([docs.phantom.com](https://docs.phantom.com/solana/detecting-the-provider?utm_source=chatgpt.com))
+          userPubkey = resp.publicKey;
+          console.log('Connected wallet:', userPubkey.toString());
 
-    // === IDL for the Program ===
-    // This simplified IDL should match your lib.rs.
-    var idl = {
-      "version": "0.0.0",
-      "name": "cal_coin",
-      "instructions": [
-        {
-          "name": "initializeDappAndMint",
-          "accounts": [
-            { "name": "dappConfig", "isMut": true, "isSigner": false },
-            { "name": "mintAuthority", "isMut": true, "isSigner": false },
-            { "name": "mintForDapp", "isMut": true, "isSigner": false },
-            { "name": "payer", "isMut": true, "isSigner": true },
-            { "name": "commissionAta", "isMut": true, "isSigner": false },
-            { "name": "token2022Program", "isMut": false, "isSigner": false },
-            { "name": "associatedTokenProgram", "isMut": false, "isSigner": false },
-            { "name": "systemProgram", "isMut": false, "isSigner": false },
-            { "name": "rent", "isMut": false, "isSigner": false }
-          ],
-          "args": [
-            { "name": "initialCommissionTokens", "type": "u64" }
-          ]
+          // Enable actions
+          document.getElementById('register-btn').disabled = false;
+          document.getElementById('claim-btn').disabled = false;
+        } catch (err) {
+          console.error('Wallet connection failed:', err);
         }
-      ],
-      "metadata": {
-        "address": "5XY37e3GSKT4P6PWmeWqL8V3MQNkTT7EAUP45f8uJV6X"
-      }
-    };
+      };
 
-    // === HELPER FUNCTIONS ===
-    // Compute PDA (program derived addresses)
-    function getPDA(seeds, programId) {
-      return solanaWeb3.PublicKey.findProgramAddressSync(seeds, programId);
-    }
-    // Compute the Associated Token Account (ATA) address.
-    function findATA(walletPubkey, mintPubkey) {
-      var ataPair = solanaWeb3.PublicKey.findProgramAddressSync(
-        [
-          walletPubkey.toBytes(),
-          TOKEN_2022_PROGRAM_ID.toBytes(),
-          mintPubkey.toBytes()
-        ],
-        ASSOCIATED_TOKEN_PROGRAM_ID
+      // Set up connection and program IDs
+      const connection = new solanaWeb3.Connection(
+        solanaWeb3.clusterApiUrl('devnet'),
+        'confirmed'
+      );  // ([quicknode.com](https://www.quicknode.com/guides/solana-development/transactions/how-to-send-a-transaction-on-solana-using-javascript?utm_source=chatgpt.com))
+      const PROGRAM_ID = new solanaWeb3.PublicKey('G5USAdnRvUW4jf14QmxSJPEV5YNXzRahXjZNHEmZmqTM');
+      const TOKEN_2022_PROGRAM_ID = new solanaWeb3.PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');  // ([spl.solana.com](https://spl.solana.com/token-2022?utm_source=chatgpt.com))
+      const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+
+      // Placeholder: user's gateway token account (for gateway checks)
+      const GATEWAY_TOKEN_PUBKEY = new solanaWeb3.PublicKey('<USER_GATEWAY_TOKEN_PUBKEY>');
+      // Placeholder: dApp's token mint address (set in initialize_mint)
+      const TOKEN_MINT_PUBKEY = new solanaWeb3.PublicKey('<YOUR_TOKEN_MINT_ADDRESS>');
+
+      // Derive PDAs
+      const [configPDA, configBump] = solanaWeb3.PublicKey.findProgramAddressSync(
+        [Buffer.from('dapp_config')],
+        PROGRAM_ID
+      );  // ([solana.com](https://solana.com/developers/cookbook/accounts/create-pda-account?utm_source=chatgpt.com))
+      const [userPDA, userBump] = solanaWeb3.PublicKey.findProgramAddressSync(
+        [Buffer.from('user_pda'), userPubkey.toBuffer()],
+        PROGRAM_ID
+      );  // ([solana.com](https://solana.com/developers/cookbook/accounts/create-pda-account?utm_source=chatgpt.com))
+      const [mintAuthPDA] = solanaWeb3.PublicKey.findProgramAddressSync(
+        [Buffer.from('mint_authority')],
+        PROGRAM_ID
       );
-      return ataPair[0];
-    }
 
-    // === GLOBAL VARIABLES ===
-    var wallet, connection, provider, program;
-    var mintForDappPda, dappConfigPda, mintAuthorityPda;
-
-    // === UI ELEMENTS ===
-    var connectBtn = document.getElementById("connect");
-    var outputEl = document.getElementById("output");
-    var initBtn = document.getElementById("initDapp");
-    var initAmountInput = document.getElementById("initAmount");
-    var initOutput = document.getElementById("initOutput");
-
-    // === CONNECT WALLET ===
-    connectBtn.addEventListener("click", async function () {
-      try {
-        // Phantom wallet injected as window.solana
-        wallet = window.solana;
-        await wallet.connect({ onlyIfTrusted: false });
-        outputEl.textContent = "Connected: " + wallet.publicKey.toString();
-
-        // Set up connection to Devnet.
-        connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl("devnet"), "confirmed");
-
-        // Create an Anchor provider using connection and wallet.
-        provider = new anchor.AnchorProvider(connection, wallet, {});
-        // In Anchor 0.31.0, no need to call anchor.setProvider(provider);
-
-        // Compute PDAs using seeds as in the program.
-        mintForDappPda = getPDA([Buffer.from("my_spl_mint"), wallet.publicKey.toBuffer()], PROGRAM_ID)[0];
-        dappConfigPda = getPDA([Buffer.from("dapp"), mintForDappPda.toBuffer()], PROGRAM_ID)[0];
-        mintAuthorityPda = getPDA([Buffer.from("mint_authority")], PROGRAM_ID)[0];
-
-        console.log("mintForDappPda:", mintForDappPda.toBase58());
-        console.log("dappConfigPda:", dappConfigPda.toBase58());
-        console.log("mintAuthorityPda:", mintAuthorityPda.toBase58());
-
-        // Instantiate the program client by passing the provider directly.
-        program = new anchor.Program(idl, PROGRAM_ID, provider);
-        initBtn.disabled = false;
-      } catch (err) {
-        console.error(err);
-        outputEl.textContent = "Error: " + err.message;
+      // Helper to fetch recent blockhash
+      async function getBlockhash() {
+        const { blockhash } = await connection.getRecentBlockhash();  // ([quicknode.com](https://www.quicknode.com/guides/solana-development/transactions/how-to-send-a-transaction-on-solana-using-javascript?utm_source=chatgpt.com))
+        return blockhash;
       }
-    });
 
-    // === INITIALIZE DAPP AND MINT TRANSACTION ===
-    initBtn.addEventListener("click", async function () {
-      try {
-        var initAmt = BigInt(initAmountInput.value);
-        if (initAmt <= 0n) throw new Error("Enter a valid commission token amount.");
+      // Register User instruction
+      document.getElementById('register-btn').onclick = async () => {
+        try {
+          // Instruction discriminator for `register_user` (first 8 bytes of sha256('global:register_user'))
+          const discReg = Buffer.from([0x3b,0xd8,0x3c,0x0e,0x34,0x32,0x0f,0x9c]);  // ([solscan.io](https://solscan.io/account/TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb?utm_source=chatgpt.com))
+          const data = discReg;  // no args
 
-        // Derive the commission ATA.
-        var commissionAta = findATA(wallet.publicKey, mintForDappPda);
+          // Accounts per Anchor context
+          const keys = [
+            { pubkey: configPDA,               isSigner: false, isWritable: false },
+            { pubkey: userPubkey,              isSigner: true,  isWritable: true  },
+            { pubkey: GATEWAY_TOKEN_PUBKEY,    isSigner: false, isWritable: false },
+            { pubkey: userPDA,                 isSigner: false, isWritable: true  },
+            { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
+            { pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY,      isSigner: false, isWritable: false }
+          ];
 
-        // Call the program's initialize_dapp_and_mint instruction using Anchor.
-        var txid = await program.methods.initializeDappAndMint(new anchor.BN(initAmt))
-          .accounts({
-            dappConfig: dappConfigPda,
-            mintAuthority: mintAuthorityPda,
-            mintForDapp: mintForDappPda,
-            payer: wallet.publicKey,
-            commissionAta: commissionAta,
-            token2022Program: TOKEN_2022_PROGRAM_ID,
-            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-            systemProgram: solanaWeb3.SystemProgram.programId,
-            rent: solanaWeb3.SYSVAR_RENT_PUBKEY
-          })
-          .rpc();
+          const recentBlockhash = await getBlockhash();
+          let tx = new solanaWeb3.Transaction({
+            recentBlockhash,
+            feePayer: userPubkey
+          }).add(
+            new solanaWeb3.TransactionInstruction({
+              keys,
+              programId: PROGRAM_ID,
+              data
+            })
+          );
 
-        initOutput.textContent = "Transaction sent: " + txid;
-      } catch (err) {
-        console.error("Initialize Dapp error:", err);
-        initOutput.textContent = "Error initializing dapp: " + err.message;
-      }
-    });
+          // Sign and send in one step
+          const { signature } = await provider.signAndSendTransaction(tx);  // ([docs.phantom.com](https://docs.phantom.com/phantom-deeplinks/provider-methods/signandsendtransaction?utm_source=chatgpt.com), [docs.phantom.com](https://docs.phantom.com/solana/sending-a-transaction?utm_source=chatgpt.com))
+          console.log('Register tx signature:', signature);
+          await connection.confirmTransaction(signature, 'confirmed');
+          console.log('User registration confirmed');
+        } catch (err) {
+          console.error('Registration error:', err);
+        }
+      };
+
+      // Claim Tokens instruction
+      document.getElementById('claim-btn').onclick = async () => {
+        try {
+          // Discriminator for `claim` (first 8 bytes of sha256('global:claim'))
+          const discClaim = Buffer.from([0x42,0xa6,0x90,0x13,0x6f,0xae,0x5d,0x3b]);  // ([solscan.io](https://solscan.io/account/TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb?utm_source=chatgpt.com))
+          const data = discClaim;
+
+          // Accounts per Anchor context for claim
+          const keys = [
+            { pubkey: configPDA,               isSigner: false, isWritable: false },
+            { pubkey: userPubkey,              isSigner: true,  isWritable: true  },
+            { pubkey: GATEWAY_TOKEN_PUBKEY,    isSigner: false, isWritable: false },
+            { pubkey: userPDA,                 isSigner: false, isWritable: true  },
+            { pubkey: TOKEN_MINT_PUBKEY,       isSigner: false, isWritable: true  },
+            { pubkey: mintAuthPDA,             isSigner: false, isWritable: false },
+            { pubkey: TOKEN_2022_PROGRAM_ID,   isSigner: false, isWritable: false },
+            { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+            { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
+            { pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY,      isSigner: false, isWritable: false }
+          ];
+
+          const recentBlockhash = await getBlockhash();
+          let tx = new solanaWeb3.Transaction({
+            recentBlockhash,
+            feePayer: userPubkey
+          }).add(
+            new solanaWeb3.TransactionInstruction({
+              keys,
+              programId: PROGRAM_ID,
+              data
+            })
+          );
+
+          const { signature } = await provider.signAndSendTransaction(tx);  // ([docs.phantom.com](https://docs.phantom.com/phantom-deeplinks/provider-methods/signandsendtransaction?utm_source=chatgpt.com), [docs.phantom.com](https://docs.phantom.com/solana/sending-a-transaction?utm_source=chatgpt.com))
+          console.log('Claim tx signature:', signature);
+          await connection.confirmTransaction(signature, 'confirmed');
+          console.log('Claim confirmed');
+        } catch (err) {
+          console.error('Claim error:', err);
+        }
+      };
+    })();
   </script>
 </body>
 </html>
