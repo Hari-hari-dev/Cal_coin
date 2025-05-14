@@ -27,7 +27,50 @@ pub mod cal_coin {
     ///
     /// It also pre-mints tokens to the commission ATA if specified.
     /// Importantly, it ensures that the configuration is only initialized once.
+    pub fn initialize_dapp_and_mint(
+        ctx: Context<InitializeDappAndMint>,
+        initial_commission_tokens: u64,
+    ) -> Result<()> {
+        let dapp = &mut ctx.accounts.dapp_config;
+        
+        // Block reinitialization.
+        require!(!dapp.initialized, ErrorCode::AlreadyInitialized);
 
+        // (A) Store the token mint address.
+        dapp.token_mint = ctx.accounts.mint_for_dapp.key();
+        // (B) Set the owner.
+        dapp.owner = ctx.accounts.user.key();
+        // (C) Set the gatekeeper network (hard-coded).
+        dapp.gatekeeper_network = Pubkey::from_str("uniqobk8oGh4XBLMqM68K8M2zNu3CdYX7q5go7whQiv")
+            .unwrap();
+        // (D) Set exempt_address to default (all zeros).
+        dapp.exempt_address = Pubkey::default();
+        // (E) Store the bump for the mint authority.
+        dapp.mint_authority_bump = ctx.bumps.mint_authority;
+        
+        // (F) Optionally pre-mint commission tokens.
+        if initial_commission_tokens > 0 {
+            let bump = ctx.bumps.mint_authority;
+            let seeds = &[b"mint_authority".as_ref(), &[bump]];
+            let signer_seeds = &[&seeds[..]];
+            let cpi_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                MintTo {
+                    mint: ctx.accounts.mint_for_dapp.to_account_info(),
+                    to: ctx.accounts.commission_ata.to_account_info(),
+                    authority: ctx.accounts.mint_authority.to_account_info(),
+                },
+                signer_seeds,
+            );
+            token_2022::mint_to(cpi_ctx, initial_commission_tokens)?;
+        }
+
+        // Mark the configuration as initialized.
+        dapp.initialized = true;
+        
+        msg!("Dapp initialized! Mint: {}", dapp.token_mint);
+        Ok(())
+    }
 
     /// One-time registration for a user.
     pub fn register_user(ctx: Context<RegisterUser>) -> Result<()> {
@@ -61,39 +104,7 @@ pub mod cal_coin {
         );
         Ok(())
     }
-    pub fn initialize_mint(
-        ctx: Context<InitializeMint>,
-        decimals: u8,
-    ) -> Result<()> {
-        let cfg = &mut ctx.accounts.dapp_config;
-        require!(!cfg.initialized, ErrorCode::AlreadyInitialized);
 
-        // save bump + mint pubkey inside cfg
-        cfg.mint_authority_bump = ctx.bumps.mint_authority;
-        cfg.token_mint          = ctx.accounts.mint_for_dapp.key();
-        cfg.initialized         = true; // config complete
-
-        msg!(
-            "Mint {} created; dapp fully initialized.",
-            cfg.token_mint
-        );
-        Ok(())
-    }
-    pub fn initialize_dapp(ctx: Context<InitializeDapp>) -> Result<()> {
-        let cfg = &mut ctx.accounts.dapp_config;
-
-        // block double-init
-        require!(!cfg.initialized, ErrorCode::AlreadyInitialized);
-
-        cfg.owner              = ctx.accounts.payer.key();
-        cfg.gatekeeper_network = Pubkey::from_str("uniqobk8oGh4XBLMqM68K8M2zNu3CdYX7q5go7whQiv").unwrap();
-        cfg.exempt_address     = Pubkey::default();
-        cfg.token_mint         = Pubkey::default(); // filled in phase 2
-        cfg.mint_authority_bump = 0;                // filled in phase 2
-
-        msg!("Dapp config stored; run initialize_mint next.");
-        Ok(())
-    }
     /// Claim tokens repeatedly.
     pub fn claim(ctx: Context<Claim>) -> Result<()> {
         let cfg = &ctx.accounts.dapp_config;
@@ -213,59 +224,52 @@ impl UserPda {
 // ---------------------------------------------------------------------
 
 #[derive(Accounts)]
-pub struct InitializeDapp<'info> {
+#[instruction(initial_commission_tokens: u64)]
+pub struct InitializeDappAndMint<'info> {
     #[account(
         init,
-        payer = payer,
+        payer = user,
         space = DappConfig::LEN,
-        seeds = [b"dapp_config"],
+        seeds = [b"dapp", mint_for_dapp.key().as_ref()],
         bump
     )]
     pub dapp_config: Account<'info, DappConfig>,
-
-    #[account(mut)]
-    pub payer: Signer<'info>,
-
-    pub system_program: Program<'info, System>,
-    pub rent: Sysvar<'info, Rent>,
-}
-
-// 7 total metas (5 “real” + 2 program/sysvar)
-#[derive(Accounts)]
-pub struct InitializeMint<'info> {
-    #[account(
-        mut,
-        seeds = [b"dapp_config"],
-        bump,
-    )]
-    pub dapp_config: Account<'info, DappConfig>,
-
-    // PDA that will own & mint tokens
+    
     #[account(
         init,
-        payer = payer,
+        payer = user,
         space = MintAuthority::LEN,
         seeds = [b"mint_authority"],
         bump
     )]
     pub mint_authority: Account<'info, MintAuthority>,
-
-    // SPL-Token-2022 mint
+    
     #[account(
         init,
-        payer = payer,
-        mint::decimals = 9,
+        payer = user,
+        seeds = [b"my_spl_mint", user.key().as_ref()],
+        bump,
+        mint::decimals = 6,
         mint::authority = mint_authority,
-        mint::freeze_authority = mint_authority,
+        mint::freeze_authority = mint_authority
     )]
     pub mint_for_dapp: InterfaceAccount<'info, Mint>,
-
+    
     #[account(mut)]
-    pub payer: Signer<'info>,
-
+    pub user: Signer<'info>,
+    
+    #[account(
+        init_if_needed,
+        payer = user,
+        associated_token::mint = mint_for_dapp,
+        associated_token::authority = user
+    )]
+    pub commission_ata: InterfaceAccount<'info, TokenAccount>,
+    
     #[account(address = TOKEN_2022_PROGRAM_ID)]
     pub token_program: Program<'info, Token2022>,
-
+    
+    pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
 }
